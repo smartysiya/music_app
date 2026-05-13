@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
+import '../widgets/tappable_card.dart';
 
 class PlaylistScreen extends StatelessWidget {
   const PlaylistScreen({super.key});
@@ -65,7 +66,7 @@ class PlaylistScreen extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        GestureDetector(
+        TappableCard(
           onTap: () => Navigator.pop(context),
           child: Container(
             width: 48,
@@ -83,43 +84,47 @@ class PlaylistScreen extends StatelessWidget {
   }
 
   Widget _buildPlaylistItem(String title, String time, String imageUrl, bool isFirst, {bool isPlaying = false}) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: kCardDecoration,
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              image: DecorationImage(
-                image: NetworkImage(imageUrl),
-                fit: BoxFit.cover,
+    return TappableCard(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: kCardDecoration,
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                image: DecorationImage(
+                  image: NetworkImage(imageUrl),
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: kTitleTextStyle.copyWith(fontSize: 16)),
-                const SizedBox(height: 4),
-                Text(time, style: kSubtitleTextStyle),
-              ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: kTitleTextStyle.copyWith(fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text(time, style: kSubtitleTextStyle),
+                ],
+              ),
             ),
-          ),
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: kBorderColor, width: 1.5),
+            TappableCard(
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: kBorderColor, width: 1.5),
+                ),
+                child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.black),
+              ),
             ),
-            child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.black),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -135,18 +140,24 @@ class PlaylistScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           const Icon(Icons.repeat, color: Colors.black),
-          const Icon(Icons.skip_previous, color: Colors.black, size: 32),
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: kOrangeColor,
-              shape: BoxShape.circle,
-              border: Border.all(color: kBorderColor, width: 2),
-            ),
-            child: const Icon(Icons.pause, color: Colors.black, size: 28),
+          TappableCard(
+            child: const Icon(Icons.skip_previous, color: Colors.black, size: 32),
           ),
-          const Icon(Icons.skip_next, color: Colors.black, size: 32),
+          TappableCard(
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: kOrangeColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: kBorderColor, width: 2),
+              ),
+              child: const Icon(Icons.pause, color: Colors.black, size: 28),
+            ),
+          ),
+          TappableCard(
+            child: const Icon(Icons.skip_next, color: Colors.black, size: 32),
+          ),
           const Icon(Icons.shuffle, color: Colors.black),
         ],
       ),

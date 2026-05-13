@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
+import '../widgets/tappable_card.dart';
 
 class LyricScreen extends StatelessWidget {
   const LyricScreen({super.key});
@@ -19,7 +20,6 @@ class LyricScreen extends StatelessWidget {
                 height: 300,
                 decoration: BoxDecoration(
                   color: kCyanColor.withOpacity(0.3),
-                  filter: ColorFilter.mode(kCyanColor.withOpacity(0.3), BlendMode.srcOver),
                   borderRadius: BorderRadius.circular(100),
                 ),
               ),
@@ -58,7 +58,7 @@ class LyricScreen extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        GestureDetector(
+        TappableCard(
           onTap: () => Navigator.pop(context),
           child: Container(
             width: 48,

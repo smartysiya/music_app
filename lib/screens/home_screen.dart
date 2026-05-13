@@ -1,62 +1,37 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
-import '../widgets/custom_bottom_nav.dart';
+import '../widgets/tappable_card.dart';
+import '../widgets/smooth_page_route.dart';
 import 'now_playing_screen.dart';
 import 'my_music_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  int _bottomNavIndex = 0;
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            SingleChildScrollView(
-              padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 100),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(context),
-                  const SizedBox(height: 32),
-                  Text('Listening Everyday', style: kHeadingTextStyle),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Explore millions of music according to your taste',
-                    style: kSubtitleTextStyle,
-                  ),
-                  const SizedBox(height: 24),
-                  _buildSearchBar(),
-                  const SizedBox(height: 24),
-                  _buildTabs(),
-                  const SizedBox(height: 24),
-                  _buildFeaturedCards(context),
-                  const SizedBox(height: 24),
-                  _buildRecentCard(),
-                ],
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: CustomBottomNav(
-                currentIndex: _bottomNavIndex,
-                onTap: (index) {
-                  setState(() => _bottomNavIndex = index);
-                },
-              ),
-            ),
-          ],
-        ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(context),
+          const SizedBox(height: 32),
+          Text('Listening Everyday', style: kHeadingTextStyle),
+          const SizedBox(height: 8),
+          Text(
+            'Explore millions of music according to your taste',
+            style: kSubtitleTextStyle,
+          ),
+          const SizedBox(height: 24),
+          _buildSearchBar(),
+          const SizedBox(height: 24),
+          _buildTabs(),
+          const SizedBox(height: 24),
+          _buildFeaturedCards(context),
+          const SizedBox(height: 24),
+          _buildRecentCard(context),
+        ],
       ),
     );
   }
@@ -65,9 +40,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        GestureDetector(
+        TappableCard(
           onTap: () {
-             Navigator.push(context, MaterialPageRoute(builder: (context) => const MyMusicScreen()));
+            Navigator.push(context, SmoothPageRoute(page: const MyMusicScreen()));
           },
           child: Container(
             width: 48,
@@ -158,11 +133,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Row(
       children: [
         Expanded(
-          child: GestureDetector(
+          child: TappableCard(
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const NowPlayingScreen()),
+                SmoothPageRoute(page: const NowPlayingScreen()),
               );
             },
             child: Container(
@@ -194,29 +169,37 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: Container(
-            height: 180,
-            padding: const EdgeInsets.all(12),
-            decoration: kCardDecoration,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.purpleAccent,
-                      borderRadius: BorderRadius.circular(12),
-                      image: const DecorationImage(
-                        image: NetworkImage('https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500'),
-                        fit: BoxFit.cover,
+          child: TappableCard(
+            onTap: () {
+              Navigator.push(
+                context,
+                SmoothPageRoute(page: const NowPlayingScreen()),
+              );
+            },
+            child: Container(
+              height: 180,
+              padding: const EdgeInsets.all(12),
+              decoration: kCardDecoration,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.purpleAccent,
+                        borderRadius: BorderRadius.circular(12),
+                        image: const DecorationImage(
+                          image: NetworkImage('https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500'),
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Text('20 Song', style: kSubtitleTextStyle.copyWith(color: kOrangeColor, fontSize: 12)),
-                Text('Tim Bergling', style: kTitleTextStyle.copyWith(fontSize: 14)),
-              ],
+                  const SizedBox(height: 12),
+                  Text('20 Song', style: kSubtitleTextStyle.copyWith(color: kOrangeColor, fontSize: 12)),
+                  Text('Tim Bergling', style: kTitleTextStyle.copyWith(fontSize: 14)),
+                ],
+              ),
             ),
           ),
         ),
@@ -224,36 +207,44 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildRecentCard() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: kCardDecoration,
-      child: Row(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              image: const DecorationImage(
-                image: NetworkImage('https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200'),
-                fit: BoxFit.cover,
+  Widget _buildRecentCard(BuildContext context) {
+    return TappableCard(
+      onTap: () {
+        Navigator.push(
+          context,
+          SmoothPageRoute(page: const NowPlayingScreen()),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: kCardDecoration,
+        child: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                image: const DecorationImage(
+                  image: NetworkImage('https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200'),
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Marshmello', style: kTitleTextStyle.copyWith(fontSize: 16)),
-                const SizedBox(height: 4),
-                Text('Hate the Other Side', style: kSubtitleTextStyle),
-              ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Marshmello', style: kTitleTextStyle.copyWith(fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text('Hate the Other Side', style: kSubtitleTextStyle),
+                ],
+              ),
             ),
-          ),
-          Text('3:40', style: kTitleTextStyle.copyWith(fontSize: 14)),
-        ],
+            Text('3:40', style: kTitleTextStyle.copyWith(fontSize: 14)),
+          ],
+        ),
       ),
     );
   }

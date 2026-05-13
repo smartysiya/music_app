@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'constants.dart';
-import 'screens/home_screen.dart';
+import 'widgets/main_shell.dart';
 
 void main() {
   SystemChrome.setSystemUIOverlayStyle(
@@ -30,7 +30,7 @@ class MusicApp extends StatelessWidget {
         ),
         fontFamily: 'Segoe UI', // Using a generic sans-serif
       ),
-      home: const HomeScreen(),
+      home: const MainShell(),
     );
   }
 }

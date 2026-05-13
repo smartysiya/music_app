@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
+import '../widgets/tappable_card.dart';
 
 class NowPlayingScreen extends StatelessWidget {
   const NowPlayingScreen({super.key});
@@ -18,7 +19,7 @@ class NowPlayingScreen extends StatelessWidget {
               _buildTitleInfo(),
               const SizedBox(height: 32),
               _buildAlbumArt(),
-              const SizedBox(height: 24), // Space for strings
+              const SizedBox(height: 24),
               _buildPlayerControls(),
             ],
           ),
@@ -31,7 +32,7 @@ class NowPlayingScreen extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        GestureDetector(
+        TappableCard(
           onTap: () => Navigator.pop(context),
           child: Container(
             width: 48,
@@ -121,18 +122,24 @@ class NowPlayingScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 const Icon(Icons.repeat, color: Colors.black),
-                const Icon(Icons.skip_previous, color: Colors.black, size: 32),
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: kOrangeColor,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: kBorderColor, width: 2),
-                  ),
-                  child: const Icon(Icons.pause, color: Colors.black, size: 32),
+                TappableCard(
+                  child: const Icon(Icons.skip_previous, color: Colors.black, size: 32),
                 ),
-                const Icon(Icons.skip_next, color: Colors.black, size: 32),
+                TappableCard(
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: kOrangeColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: kBorderColor, width: 2),
+                    ),
+                    child: const Icon(Icons.pause, color: Colors.black, size: 32),
+                  ),
+                ),
+                TappableCard(
+                  child: const Icon(Icons.skip_next, color: Colors.black, size: 32),
+                ),
                 const Icon(Icons.shuffle, color: Colors.black),
               ],
             ),

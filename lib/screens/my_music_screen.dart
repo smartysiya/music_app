@@ -1,79 +1,58 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
-import '../widgets/custom_bottom_nav.dart';
+import '../widgets/tappable_card.dart';
+import '../widgets/smooth_page_route.dart';
 import 'playlist_screen.dart';
 import 'lyric_screen.dart';
 
-class MyMusicScreen extends StatefulWidget {
+class MyMusicScreen extends StatelessWidget {
   const MyMusicScreen({super.key});
-
-  @override
-  State<MyMusicScreen> createState() => _MyMusicScreenState();
-}
-
-class _MyMusicScreenState extends State<MyMusicScreen> {
-  int _bottomNavIndex = 3;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Stack(
-          children: [
-            SingleChildScrollView(
-              padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 100),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(context),
+              const SizedBox(height: 32),
+              _buildGrid(context),
+              const SizedBox(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildHeader(),
-                  const SizedBox(height: 32),
-                  _buildGrid(),
-                  const SizedBox(height: 32),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Recommended for you', style: kTitleTextStyle),
-                      const Icon(Icons.arrow_forward_rounded, color: Colors.black),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _buildRecommendedCards(),
+                  Text('Recommended for you', style: kTitleTextStyle),
+                  const Icon(Icons.arrow_forward_rounded, color: Colors.black),
                 ],
               ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: CustomBottomNav(
-                currentIndex: _bottomNavIndex,
-                onTap: (index) {
-                  setState(() => _bottomNavIndex = index);
-                  if (index == 0) {
-                     Navigator.pop(context);
-                  }
-                },
-              ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              _buildRecommendedCards(context),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: kCyanColor.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: kBorderColor, width: 1.5),
+        TappableCard(
+          onTap: () => Navigator.pop(context),
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: kOrangeColor.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: kBorderColor, width: 1.5),
+            ),
+            child: const Icon(Icons.arrow_back, color: Colors.black),
           ),
-          child: const Icon(Icons.grid_view_rounded, color: Colors.black),
         ),
         Text('My Music', style: kTitleTextStyle),
         Row(
@@ -98,9 +77,9 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
     );
   }
 
-  Widget _buildGrid() {
+  Widget _buildGrid(BuildContext context) {
     final List<Map<String, dynamic>> items = [
-      {'icon': Icons.location_on_outlined, 'color': kCyanColor, 'title': 'All Song'},
+      {'icon': Icons.library_music_outlined, 'color': kCyanColor, 'title': 'All Song'},
       {'icon': Icons.download_outlined, 'color': kCyanColor, 'title': 'Download'},
       {'icon': Icons.collections_outlined, 'color': kCyanColor, 'title': 'Collections'},
       {'icon': Icons.shopping_cart_outlined, 'color': kOrangeColor, 'title': 'Purchase'},
@@ -122,10 +101,10 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
           childAspectRatio: 0.8,
         ),
         itemBuilder: (context, index) {
-          return GestureDetector(
+          return TappableCard(
             onTap: () {
               if (items[index]['title'] == 'Lyric') {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const LyricScreen()));
+                Navigator.push(context, SmoothPageRoute(page: const LyricScreen()));
               }
             },
             child: Column(
@@ -139,11 +118,11 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
                     border: Border.all(color: kBorderColor, width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: items[index]['color'].withOpacity(0.5),
+                        color: (items[index]['color'] as Color).withOpacity(0.5),
                         offset: const Offset(-2, 4),
                         blurRadius: 0,
                       )
-                    ]
+                    ],
                   ),
                   child: Icon(items[index]['icon'], color: Colors.black),
                 ),
@@ -161,13 +140,13 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
     );
   }
 
-  Widget _buildRecommendedCards() {
+  Widget _buildRecommendedCards(BuildContext context) {
     return Row(
       children: [
         Expanded(
-          child: GestureDetector(
+          child: TappableCard(
             onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const PlaylistScreen()));
+              Navigator.push(context, SmoothPageRoute(page: const PlaylistScreen()));
             },
             child: Container(
               height: 180,
@@ -198,29 +177,34 @@ class _MyMusicScreenState extends State<MyMusicScreen> {
         ),
         const SizedBox(width: 16),
         Expanded(
-          child: Container(
-            height: 180,
-            padding: const EdgeInsets.all(12),
-            decoration: kCardDecoration,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.greenAccent,
-                      borderRadius: BorderRadius.circular(12),
-                      image: const DecorationImage(
-                        image: NetworkImage('https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=500'),
-                        fit: BoxFit.cover,
+          child: TappableCard(
+            onTap: () {
+              Navigator.push(context, SmoothPageRoute(page: const PlaylistScreen()));
+            },
+            child: Container(
+              height: 180,
+              padding: const EdgeInsets.all(12),
+              decoration: kCardDecoration,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent,
+                        borderRadius: BorderRadius.circular(12),
+                        image: const DecorationImage(
+                          image: NetworkImage('https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=500'),
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                Text('20 Song', style: kSubtitleTextStyle.copyWith(color: kOrangeColor, fontSize: 12)),
-                Text('Tim Bergling', style: kTitleTextStyle.copyWith(fontSize: 14)),
-              ],
+                  const SizedBox(height: 12),
+                  Text('20 Song', style: kSubtitleTextStyle.copyWith(color: kOrangeColor, fontSize: 12)),
+                  Text('Tim Bergling', style: kTitleTextStyle.copyWith(fontSize: 14)),
+                ],
+              ),
             ),
           ),
         ),
