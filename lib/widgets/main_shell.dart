@@ -4,6 +4,7 @@ import '../screens/home_screen.dart';
 import '../screens/favorites_screen.dart';
 import '../screens/recently_played_screen.dart';
 import '../screens/settings_screen.dart';
+import 'mini_player.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -34,40 +35,60 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeIn,
-          transitionBuilder: (child, animation) {
-            final scale = Tween<double>(begin: 0.94, end: 1.0).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-            );
-            return FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(
-                scale: scale,
-                child: child,
-              ),
-            );
-          },
-          child: KeyedSubtree(
-            key: ValueKey<int>(_currentIndex),
-            child: _pages[_currentIndex],
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            kBackgroundColor,
+            const Color(0xFF1E293B),
+            kTealColor.withOpacity(0.3),
+          ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
+      child: Scaffold(
+        backgroundColor: Colors.transparent, // Make scaffold transparent to show container gradient
+        body: SafeArea(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (child, animation) {
+              final scale = Tween<double>(begin: 0.94, end: 1.0).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+              );
+              return FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(
+                  scale: scale,
+                  child: child,
+                ),
+              );
+            },
+            child: KeyedSubtree(
+              key: ValueKey<int>(_currentIndex),
+              child: _pages[_currentIndex],
+            ),
+          ),
+        ),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const MiniPlayer(),
+            _buildBottomNav(),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildBottomNav() {
     return Container(
       decoration: BoxDecoration(
-        color: kCyanColor,
-        border: const Border(
-          top: BorderSide(color: kBorderColor, width: 1.5),
+        color: kBackgroundColor.withOpacity(0.8),
+        border: Border(
+          top: BorderSide(color: Colors.white.withOpacity(0.1), width: 1.5),
         ),
       ),
       child: SafeArea(
@@ -108,39 +129,17 @@ class _MainShellState extends State<MainShell> {
               ? Border.all(color: kBorderColor, width: 1.5)
               : null,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedScale(
-              scale: isSelected ? 1.1 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutBack,
-              child: Icon(
-                isSelected
-                    ? _getFilledIcon(icon)
-                    : icon,
-                color: isSelected ? Colors.black : Colors.white,
-                size: 22,
-              ),
-            ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOutCubic,
-              child: isSelected
-                  ? Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Text(
-                        label,
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ],
+        child: AnimatedScale(
+          scale: isSelected ? 1.1 : 1.0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutBack,
+          child: Icon(
+            isSelected
+                ? _getFilledIcon(icon)
+                : icon,
+            color: isSelected ? Colors.black : Colors.white,
+            size: 24,
+          ),
         ),
       ),
     );

@@ -1,62 +1,54 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../widgets/tappable_card.dart';
+import '../data/music_library.dart';
+import '../providers/playback_provider.dart';
+import 'now_playing_screen.dart';
+import '../widgets/smooth_page_route.dart';
 
 class PlaylistScreen extends StatelessWidget {
-  const PlaylistScreen({super.key});
+  final String title;
+  const PlaylistScreen({super.key, this.title = 'My Playlist'});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Left circular background decoration
-            Positioned(
-              left: -150,
-              top: 150,
-              bottom: 150,
-              child: Container(
-                width: 300,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: kCyanColor, width: 20),
-                ),
-                child: Center(
-                  child: Container(
-                    margin: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: kOrangeColor, width: 10),
-                    ),
-                  ),
+    final songs = MusicLibrary.songs;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFF1E3A8A).withOpacity(0.8),
+            kBackgroundColor,
+            kTealColor.withOpacity(0.2),
+          ],
+        ),
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: _buildHeader(context),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  itemCount: songs.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 16),
+                  itemBuilder: (context, index) {
+                    final song = songs[index];
+                    return _buildPlaylistItem(context, song);
+                  },
                 ),
               ),
-            ),
-            Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: _buildHeader(context),
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 40),
-                    children: [
-                      _buildPlaylistItem('Happier', '04:38', 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200', true),
-                      const SizedBox(height: 24),
-                      _buildPlaylistItem('Sad Song', '03:24', 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f92a?w=200', false, isPlaying: true),
-                      const SizedBox(height: 24),
-                      _buildPlaylistItem('Put Your Hands', '04:10', 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200', false),
-                      const SizedBox(height: 24),
-                      _buildPlaylistItem('Hate the Other Side', '03:40', 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200', false),
-                    ],
-                  ),
-                ),
-                _buildBottomPlayer(),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -71,95 +63,98 @@ class PlaylistScreen extends StatelessWidget {
           child: Container(
             width: 48,
             height: 48,
-            decoration: kOrangeButtonDecoration.copyWith(
+            decoration: BoxDecoration(
+              color: kOrangeColor.withOpacity(0.2),
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.1), width: 1.5),
             ),
-            child: const Icon(Icons.arrow_back, color: Colors.black),
+            child: const Icon(Icons.arrow_back, color: kTextColor),
           ),
         ),
-        Text('My Playlist', style: kTitleTextStyle),
-        const Icon(Icons.share_outlined, color: Colors.black),
+        Text(title, style: kTitleTextStyle),
+        const Icon(Icons.share_outlined, color: kTextColor),
       ],
     );
   }
 
-  Widget _buildPlaylistItem(String title, String time, String imageUrl, bool isFirst, {bool isPlaying = false}) {
-    return TappableCard(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: kCardDecoration,
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
+  Widget _buildPlaylistItem(BuildContext context, Song song) {
+    final playback = context.watch<PlaybackProvider>();
+    final isCurrentSong = playback.currentSong?.id == song.id;
+
+    return GestureDetector(
+      onDoubleTap: () => showSongInfoDialog(context, song),
+      child: TappableCard(
+        onTap: () {
+          playback.playSong(song);
+          Navigator.push(context, SmoothPageRoute(page: const NowPlayingScreen()));
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: kCardDecoration.copyWith(
+            border: isCurrentSong 
+                ? Border.all(color: kCyanColor.withOpacity(0.5), width: 1.5)
+                : Border.all(color: Colors.white.withOpacity(0.05), width: 1.5),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                image: DecorationImage(
-                  image: NetworkImage(imageUrl),
-                  fit: BoxFit.cover,
+                child: Image.network(song.imageUrl, width: 56, height: 56, fit: BoxFit.cover),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song.title, 
+                      style: kTitleTextStyle.copyWith(
+                        fontSize: 16,
+                        color: isCurrentSong ? kCyanColor : kTextColor,
+                      )
+                    ),
+                    const SizedBox(height: 4),
+                    Text(song.artist, style: kSubtitleTextStyle),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: kTitleTextStyle.copyWith(fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text(time, style: kSubtitleTextStyle),
-                ],
+              Consumer<PlaybackProvider>(
+                builder: (context, playback, _) {
+                  final isFav = playback.isFavorite(song.id);
+                  if (!isFav) return const SizedBox.shrink();
+                  return TappableCard(
+                    onTap: () => playback.toggleFavorite(song.id),
+                    child: const Icon(
+                      Icons.favorite,
+                      color: Colors.redAccent,
+                      size: 20,
+                    ),
+                  );
+                },
               ),
-            ),
-            TappableCard(
-              child: Container(
+              Consumer<PlaybackProvider>(
+                builder: (context, playback, _) {
+                  final isFav = playback.isFavorite(song.id);
+                  if (isFav) return const SizedBox(width: 16);
+                  return const SizedBox.shrink();
+                },
+              ),
+              Container(
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: kBorderColor, width: 1.5),
+                  color: isCurrentSong ? kCyanColor : Colors.white.withOpacity(0.05),
                 ),
-                child: Icon(isPlaying ? Icons.pause : Icons.play_arrow, color: Colors.black),
+                child: Icon(
+                  isCurrentSong && playback.isPlaying ? Icons.pause : Icons.play_arrow, 
+                  color: isCurrentSong ? Colors.white : kTextColor,
+                  size: 20,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildBottomPlayer() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: kBorderColor, width: 1.5)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          const Icon(Icons.repeat, color: Colors.black),
-          TappableCard(
-            child: const Icon(Icons.skip_previous, color: Colors.black, size: 32),
-          ),
-          TappableCard(
-            child: Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: kOrangeColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: kBorderColor, width: 2),
-              ),
-              child: const Icon(Icons.pause, color: Colors.black, size: 28),
-            ),
-          ),
-          TappableCard(
-            child: const Icon(Icons.skip_next, color: Colors.black, size: 32),
-          ),
-          const Icon(Icons.shuffle, color: Colors.black),
-        ],
       ),
     );
   }

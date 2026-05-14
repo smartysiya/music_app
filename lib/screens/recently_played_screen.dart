@@ -150,35 +150,9 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen>
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: kCyanColor.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: kBorderColor, width: 1.5),
-          ),
-          child: const Icon(Icons.history, color: Colors.black),
-        ),
+        const SizedBox(width: 24), // Placeholder to keep title centered
         Text('History', style: kTitleTextStyle),
-        Row(
-          children: [
-            const Icon(Icons.delete_outline, color: Colors.black),
-            const SizedBox(width: 16),
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: kBorderColor, width: 1.5),
-                image: const DecorationImage(
-                  image: NetworkImage('https://i.pravatar.cc/150?img=32'),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ],
-        )
+        const Icon(Icons.delete_outline, color: Colors.white70),
       ],
     );
   }
