@@ -21,6 +21,30 @@ class Song {
     this.license = 'CC BY-NC 4.0',
     this.localPath,
   });
+
+  Song copyWith({
+    String? id,
+    String? title,
+    String? artist,
+    String? album,
+    String? duration,
+    String? imageUrl,
+    String? genre,
+    String? license,
+    String? localPath,
+  }) {
+    return Song(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      album: album ?? this.album,
+      duration: duration ?? this.duration,
+      imageUrl: imageUrl ?? this.imageUrl,
+      genre: genre ?? this.genre,
+      license: license ?? this.license,
+      localPath: localPath ?? this.localPath,
+    );
+  }
 }
 
 /// Shared in-memory library — expand by adding more Song objects here.

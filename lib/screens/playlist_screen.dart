@@ -6,6 +6,9 @@ import '../data/music_library.dart';
 import '../providers/playback_provider.dart';
 import 'now_playing_screen.dart';
 import '../widgets/smooth_page_route.dart';
+import '../providers/settings_provider.dart';
+import '../providers/download_provider.dart';
+import '../providers/history_provider.dart';
 
 class PlaylistScreen extends StatelessWidget {
   final String title;
@@ -84,9 +87,32 @@ class PlaylistScreen extends StatelessWidget {
     return GestureDetector(
       onDoubleTap: () => showSongInfoDialog(context, song),
       child: TappableCard(
-        onTap: () {
-          playback.playSong(song);
-          Navigator.push(context, SmoothPageRoute(page: const NowPlayingScreen()));
+        onTap: () async {
+          final settings = context.read<SettingsProvider>();
+          final downloads = context.read<DownloadProvider>();
+          
+          bool success = await playback.playSong(
+            song,
+            isOffline: settings.isOfflineMode,
+            isDownloaded: downloads.isDownloaded(song.id),
+          );
+
+          if (success) {
+            context.read<HistoryProvider>().addToHistory(song);
+            Navigator.push(context, SmoothPageRoute(page: const NowPlayingScreen()));
+          } else {
+            final isInLibrary = MusicLibrary.songs.any((s) => s.id == song.id);
+            String message = (settings.isOfflineMode && isInLibrary) 
+                ? 'This song is not available offline.' 
+                : 'Failed to stream song. Please check your connection.';
+                
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
         },
         child: Container(
           padding: const EdgeInsets.all(12),
@@ -99,7 +125,18 @@ class PlaylistScreen extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(song.imageUrl, width: 56, height: 56, fit: BoxFit.cover),
+                child: Image.network(
+                  song.imageUrl,
+                  width: 56,
+                  height: 56,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 56,
+                    height: 56,
+                    color: Colors.white10,
+                    child: const Icon(Icons.music_note, color: Colors.white24),
+                  ),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -136,6 +173,17 @@ class PlaylistScreen extends StatelessWidget {
                 builder: (context, playback, _) {
                   final isFav = playback.isFavorite(song.id);
                   if (isFav) return const SizedBox(width: 16);
+                  return const SizedBox.shrink();
+                },
+              ),
+              Consumer<DownloadProvider>(
+                builder: (context, downloads, _) {
+                  if (downloads.isDownloaded(song.id)) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 12.0),
+                      child: Icon(Icons.download_done, color: kCyanColor.withOpacity(0.5), size: 16),
+                    );
+                  }
                   return const SizedBox.shrink();
                 },
               ),

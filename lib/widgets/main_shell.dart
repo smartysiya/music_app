@@ -116,34 +116,60 @@ class _MainShellState extends State<MainShell> {
       onTap: () => _onTabTapped(index),
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeOutCubic,
         padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 16 : 12,
-          vertical: 8,
+          horizontal: isSelected ? 20 : 12,
+          vertical: 10,
         ),
         decoration: BoxDecoration(
           color: isSelected ? kOrangeColor : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           border: isSelected
-              ? Border.all(color: kBorderColor, width: 1.5)
+              ? Border.all(color: Colors.white.withOpacity(0.2), width: 1)
               : null,
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: kOrangeColor.withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            )
+          ] : null,
         ),
-        child: AnimatedScale(
-          scale: isSelected ? 1.1 : 1.0,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutBack,
-          child: Icon(
-            isSelected
-                ? _getFilledIcon(icon)
-                : icon,
-            color: isSelected ? Colors.black : Colors.white,
-            size: 24,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? _getFilledIcon(icon) : icon,
+              color: isSelected ? Colors.black : Colors.white.withOpacity(0.7),
+              size: 24,
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              child: isSelected
+                  ? Row(
+                      children: [
+                        const SizedBox(width: 8),
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
         ),
       ),
     );
   }
+
 
   IconData _getFilledIcon(IconData icon) {
     if (icon == Icons.home_filled) return Icons.home_filled;

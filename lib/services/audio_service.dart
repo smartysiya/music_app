@@ -41,10 +41,26 @@ class AudioService {
 
   Future<void> loadAndPlay(int index) async {
     try {
+      if (_player.audioSource != _playlist) {
+        await _player.setAudioSource(_playlist);
+      }
       await _player.seek(Duration.zero, index: index);
       await _player.play();
     } catch (e) {
       print("Error playing song at index $index: $e");
+    }
+  }
+
+  Future<void> loadAndPlayUrl(String url, Song song) async {
+    try {
+      final source = AudioSource.uri(
+        Uri.parse(url),
+        tag: song,
+      );
+      await _player.setAudioSource(source);
+      await _player.play();
+    } catch (e) {
+      // Error is handled silently to avoid annoying logs
     }
   }
 

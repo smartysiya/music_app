@@ -1,4 +1,4 @@
-name: music_app
+name: melme
 description: A music app UI in Dart.
 
 publish_to: 'none'
@@ -16,6 +16,10 @@ dependencies:
   provider: ^6.1.1
   image_picker: ^1.0.7
   shared_preferences: ^2.5.5
+  http: ^1.2.1
+  youtube_explode_dart: ^2.3.4
+  youtube_player_iframe: ^5.2.2
+  share_plus: ^13.1.0
 
 dev_dependencies:
   flutter_test:

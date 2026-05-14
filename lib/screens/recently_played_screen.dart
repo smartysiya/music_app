@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../constants.dart';
 import '../widgets/tappable_card.dart';
+import '../providers/history_provider.dart';
+import '../providers/playback_provider.dart';
+import '../providers/settings_provider.dart';
+import '../providers/download_provider.dart';
+import 'now_playing_screen.dart';
+import '../widgets/smooth_page_route.dart';
 
 class RecentlyPlayedScreen extends StatefulWidget {
   const RecentlyPlayedScreen({super.key});
@@ -11,67 +18,24 @@ class RecentlyPlayedScreen extends StatefulWidget {
 
 class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen>
     with TickerProviderStateMixin {
-  final List<Map<String, String>> _recentSongs = [
-    {
-      'title': 'Hate the Other Side',
-      'artist': 'Marshmello',
-      'duration': '3:40',
-      'image': 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200',
-      'time': '2 min ago',
-    },
-    {
-      'title': 'The Spectre',
-      'artist': 'Alan Walker',
-      'duration': '3:15',
-      'image': 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f92a?w=200',
-      'time': '15 min ago',
-    },
-    {
-      'title': 'Sad Song',
-      'artist': 'Marshmello',
-      'duration': '3:24',
-      'image': 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=200',
-      'time': '1 hr ago',
-    },
-    {
-      'title': 'Without You',
-      'artist': 'Avicii',
-      'duration': '3:46',
-      'image': 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=200',
-      'time': '2 hrs ago',
-    },
-    {
-      'title': 'Put Your Hands Up',
-      'artist': 'Marshmello',
-      'duration': '4:10',
-      'image': 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200',
-      'time': '3 hrs ago',
-    },
-    {
-      'title': 'Faded',
-      'artist': 'Alan Walker',
-      'duration': '3:32',
-      'image': 'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f92a?w=200',
-      'time': 'Yesterday',
-    },
-    {
-      'title': 'Levels',
-      'artist': 'Avicii',
-      'duration': '3:18',
-      'image': 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=200',
-      'time': 'Yesterday',
-    },
-  ];
-
-  late List<AnimationController> _controllers;
-  late List<Animation<double>> _scaleAnimations;
-  late List<Animation<double>> _fadeAnimations;
+  late List<AnimationController> _controllers = [];
+  late List<Animation<double>> _scaleAnimations = [];
+  late List<Animation<double>> _fadeAnimations = [];
 
   @override
   void initState() {
     super.initState();
+    _initAnimations();
+  }
+
+  void _initAnimations() {
+    final history = context.read<HistoryProvider>().history;
+    for (var controller in _controllers) {
+      controller.dispose();
+    }
+    
     _controllers = List.generate(
-      _recentSongs.length,
+      history.length,
       (index) => AnimationController(
         vsync: this,
         duration: Duration(milliseconds: 350 + (index * 60)),
@@ -105,12 +69,21 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen>
 
   @override
   Widget build(BuildContext context) {
+    final historyProvider = context.watch<HistoryProvider>();
+    final history = historyProvider.history;
+
+    if (history.isEmpty) {
+      return Center(
+        child: Text('No recently played songs', style: kSubtitleTextStyle),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(left: 24, right: 24, top: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(),
+          _buildHeader(context, historyProvider),
           const SizedBox(height: 24),
           Text('Recently Played', style: kHeadingTextStyle),
           const SizedBox(height: 4),
@@ -122,9 +95,10 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen>
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.only(bottom: 16),
-              itemCount: _recentSongs.length,
+              itemCount: history.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
+                if (index >= _controllers.length) return const SizedBox.shrink();
                 return AnimatedBuilder(
                   animation: _controllers[index],
                   builder: (context, child) {
@@ -136,7 +110,7 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen>
                       ),
                     );
                   },
-                  child: _buildRecentItem(_recentSongs[index]),
+                  child: _buildRecentItem(context, history[index], historyProvider),
                 );
               },
             ),
@@ -146,19 +120,49 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen>
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context, HistoryProvider historyProvider) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const SizedBox(width: 24), // Placeholder to keep title centered
+        TappableCard(
+          onTap: () => Navigator.pop(context),
+          child: const Icon(Icons.arrow_back, color: kTextColor),
+        ),
         Text('History', style: kTitleTextStyle),
-        const Icon(Icons.delete_outline, color: Colors.white70),
+        TappableCard(
+          onTap: () => historyProvider.clearHistory(),
+          child: const Icon(Icons.delete_outline, color: Colors.white70),
+        ),
       ],
     );
   }
 
-  Widget _buildRecentItem(Map<String, String> song) {
+  Widget _buildRecentItem(BuildContext context, HistoryItem item, HistoryProvider historyProvider) {
+    final song = item.song;
+    final timeAgo = historyProvider.formatTimeAgo(item.playedAt);
+
     return TappableCard(
+      onTap: () async {
+        final settings = context.read<SettingsProvider>();
+        final downloads = context.read<DownloadProvider>();
+        final playback = context.read<PlaybackProvider>();
+        
+        bool success = await playback.playSong(
+          song,
+          isOffline: settings.isOfflineMode,
+          isDownloaded: downloads.isDownloaded(song.id),
+        );
+
+        if (success) {
+          historyProvider.addToHistory(song);
+          if (context.mounted) {
+            Navigator.push(
+              context,
+              SmoothPageRoute(page: const NowPlayingScreen()),
+            );
+          }
+        }
+      },
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: kCardDecoration,
@@ -170,7 +174,7 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen>
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
                 image: DecorationImage(
-                  image: NetworkImage(song['image']!),
+                  image: NetworkImage(song.imageUrl),
                   fit: BoxFit.cover,
                 ),
               ),
@@ -180,20 +184,21 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(song['title']!,
-                      style: kTitleTextStyle.copyWith(fontSize: 16)),
+                  Text(song.title,
+                      style: kTitleTextStyle.copyWith(fontSize: 16),
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
-                  Text(song['artist']!, style: kSubtitleTextStyle),
+                  Text(song.artist, style: kSubtitleTextStyle),
                 ],
               ),
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(song['duration']!,
+                Text(song.duration,
                     style: kSubtitleTextStyle.copyWith(fontSize: 13)),
                 const SizedBox(height: 4),
-                Text(song['time']!,
+                Text(timeAgo,
                     style: kSubtitleTextStyle.copyWith(
                         fontSize: 11, color: kCyanColor)),
               ],

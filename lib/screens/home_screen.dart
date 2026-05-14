@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants.dart';
@@ -5,9 +6,14 @@ import '../widgets/tappable_card.dart';
 import '../widgets/smooth_page_route.dart';
 import '../providers/playback_provider.dart';
 import '../data/music_library.dart';
+import '../services/youtube_service.dart';
 import 'now_playing_screen.dart';
 import 'my_music_screen.dart';
 import 'notification_screen.dart';
+import '../providers/settings_provider.dart';
+import '../providers/download_provider.dart';
+import '../providers/history_provider.dart';
+import '../services/lastfm_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,7 +25,20 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   String _selectedTab = 'Overview';
   String _searchQuery = '';
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadTabData('Overview');
+  }
   final TextEditingController _searchController = TextEditingController();
+  final YouTubeService _youtubeService = YouTubeService();
+  final LastFmService _lastFmService = LastFmService();
+  List<Song> _youtubeResults = [];
+  List<Song> _tabResults = [];
+  bool _isSearching = false;
+  bool _isLoadingTab = false;
+  Timer? _debounce;
 
   List<Song> get _filteredSongs {
     if (_searchQuery.isEmpty) return MusicLibrary.songs;
@@ -27,6 +46,93 @@ class _HomeScreenState extends State<HomeScreen> {
       return song.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
           song.artist.toLowerCase().contains(_searchQuery.toLowerCase());
     }).toList();
+  }
+
+  Future<void> _loadTabData(String tab) async {
+    setState(() => _isLoadingTab = true);
+    List<Song> results = [];
+    
+    try {
+      if (tab == 'Overview') {
+        results = await _lastFmService.getTopTracks();
+      } else if (tab == 'Songs') {
+        results = await _lastFmService.getTopTracks(); // Or a specific chart
+      } else if (tab == 'Album') {
+        results = await _lastFmService.searchAlbums('Top hits 2024');
+      } else if (tab == 'Artist') {
+        results = await _lastFmService.getTopArtists();
+      }
+    } catch (e) {
+      debugPrint('Error loading tab data: $e');
+    }
+    
+    if (mounted) {
+      setState(() {
+        _tabResults = results;
+        _isLoadingTab = false;
+      });
+    }
+  }
+
+  Future<void> _onAlbumTap(Song album) async {
+    setState(() => _isLoadingTab = true);
+    final tracks = await _lastFmService.getAlbumTracks(album.artist, album.title);
+    if (mounted) {
+      setState(() {
+        // Carry over the album art to tracks since Last.fm track info often lacks it
+        _tabResults = tracks.map((t) => t.copyWith(imageUrl: album.imageUrl)).toList();
+        _selectedTab = 'Songs';
+        _isLoadingTab = false;
+      });
+    }
+  }
+
+  Future<void> _onArtistTap(Song artist) async {
+    setState(() => _isLoadingTab = true);
+    // Search for the artist's top songs on YouTube
+    final results = await _youtubeService.searchSongs('${artist.title} top songs');
+    if (mounted) {
+      setState(() {
+        _tabResults = results;
+        _selectedTab = 'Songs';
+        _isLoadingTab = false;
+      });
+    }
+  }
+
+  Future<void> _searchSongs(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        _youtubeResults = [];
+        _isSearching = false;
+      });
+      return;
+    }
+
+    setState(() => _isSearching = true);
+    final results = await _lastFmService.searchTracks(query);
+    if (mounted) {
+      setState(() {
+        _youtubeResults = results;
+        _isSearching = false;
+      });
+    }
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      _searchQuery = query;
+      _searchSongs(query);
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _youtubeService.dispose();
+    _debounce?.cancel();
+    super.dispose();
   }
 
   @override
@@ -58,6 +164,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildContent() {
     if (_searchQuery.isNotEmpty) {
       return _buildSearchResults();
+    }
+
+    if (_isLoadingTab) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(48.0),
+          child: CircularProgressIndicator(color: kCyanColor),
+        ),
+      );
     }
 
     switch (_selectedTab) {
@@ -132,11 +247,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: TextField(
               controller: _searchController,
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
+              onChanged: _onSearchChanged,
               style: const TextStyle(color: kTextColor),
               decoration: InputDecoration(
                 hintText: 'Search Music',
@@ -146,13 +257,20 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          if (_searchQuery.isNotEmpty)
+          if (_isSearching)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: kCyanColor),
+            )
+          else if (_searchController.text.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.clear, color: kTextColor, size: 20),
               onPressed: () {
                 setState(() {
                   _searchQuery = '';
                   _searchController.clear();
+                  _youtubeResults = [];
                 });
               },
             ),
@@ -174,6 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _searchQuery = '';
               _searchController.clear();
             });
+            _loadTabData(tab);
           },
           child: Column(
             children: [
@@ -203,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSearchResults() {
-    if (_filteredSongs.isEmpty) {
+    if (_filteredSongs.isEmpty && _youtubeResults.isEmpty && !_isSearching) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.only(top: 40),
@@ -212,26 +331,36 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _filteredSongs.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final song = _filteredSongs[index];
-        return _buildSongItem(song);
-      },
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_filteredSongs.isNotEmpty) ...[
+          ..._filteredSongs.map((song) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildSongItem(song),
+          )),
+          const SizedBox(height: 12),
+        ],
+        if (_youtubeResults.isNotEmpty) ...[
+          ..._youtubeResults.map((song) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildSongItem(song),
+          )),
+        ],
+      ],
     );
   }
 
   Widget _buildSongsList() {
+    final songs = _tabResults.isEmpty ? MusicLibrary.songs : _tabResults;
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: MusicLibrary.songs.length,
+      itemCount: songs.length,
       separatorBuilder: (context, index) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final song = MusicLibrary.songs[index];
+        final song = songs[index];
         return _buildSongItem(song);
       },
     );
@@ -241,10 +370,36 @@ class _HomeScreenState extends State<HomeScreen> {
     return GestureDetector(
       onDoubleTap: () => showSongInfoDialog(context, song),
       child: TappableCard(
-        onTap: () {
-          context.read<PlaybackProvider>().playSong(song);
-          Navigator.push(
-              context, SmoothPageRoute(page: const NowPlayingScreen()));
+        onTap: () async {
+          final settings = context.read<SettingsProvider>();
+          final downloads = context.read<DownloadProvider>();
+          final playback = context.read<PlaybackProvider>();
+          
+          bool success = await playback.playSong(
+            song,
+            isOffline: settings.isOfflineMode,
+            isDownloaded: downloads.isDownloaded(song.id),
+          );
+
+          if (success) {
+            if (mounted) {
+              context.read<HistoryProvider>().addToHistory(song);
+            }
+            Navigator.push(
+                context, SmoothPageRoute(page: const NowPlayingScreen()));
+          } else {
+            final isInLibrary = MusicLibrary.songs.any((s) => s.id == song.id);
+            String message = (settings.isOfflineMode && isInLibrary) 
+                ? 'This song is not available offline.' 
+                : 'Failed to stream song. Please check your connection.';
+                
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(message),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
         },
         child: Container(
           padding: const EdgeInsets.all(12),
@@ -253,8 +408,18 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: Image.network(song.imageUrl,
-                    width: 50, height: 50, fit: BoxFit.cover),
+                child: Image.network(
+                  song.imageUrl,
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    width: 50,
+                    height: 50,
+                    color: Colors.white10,
+                    child: const Icon(Icons.music_note, color: Colors.white24),
+                  ),
+                ),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -298,7 +463,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAlbumsGrid() {
-    final albums = MusicLibrary.albums;
+    final List<Song> sourceSongs = _tabResults.isEmpty ? MusicLibrary.songs : _tabResults;
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -308,11 +473,13 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisSpacing: 16,
         childAspectRatio: 0.8,
       ),
-      itemCount: albums.length,
+      itemCount: sourceSongs.length,
       itemBuilder: (context, index) {
-        final album = albums[index];
-        final imageUrl = MusicLibrary.coverForAlbum(album);
+        final song = sourceSongs[index];
+        final album = song.album;
+        final imageUrl = song.imageUrl;
         return TappableCard(
+          onTap: () => _onAlbumTap(song),
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: kCardDecoration,
@@ -322,15 +489,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.network(imageUrl,
-                        fit: BoxFit.cover, width: double.infinity),
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.white10,
+                        child: const Icon(Icons.album, color: Colors.white24, size: 48),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 Text(album,
                     style: kTitleTextStyle.copyWith(fontSize: 14),
                     overflow: TextOverflow.ellipsis),
-                Text('${MusicLibrary.songsByAlbum(album).length} Songs',
+                Text(song.artist,
                     style: kSubtitleTextStyle.copyWith(fontSize: 12)),
               ],
             ),
@@ -341,7 +515,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildArtistsGrid() {
-    final artists = MusicLibrary.artists;
+    final sourceSongs = _tabResults.isEmpty ? MusicLibrary.songs : _tabResults;
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -351,27 +525,37 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisSpacing: 16,
         childAspectRatio: 0.8,
       ),
-      itemCount: artists.length,
+      itemCount: sourceSongs.length,
       itemBuilder: (context, index) {
-        final artist = artists[index];
-        final imageUrl = MusicLibrary.coverForArtist(artist);
+        final song = sourceSongs[index];
+        final artist = song.artist;
+        final imageUrl = song.imageUrl;
         return TappableCard(
+          onTap: () => _onArtistTap(song),
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: kCardDecoration,
             child: Column(
               children: [
                 Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      image: DecorationImage(
-                          image: NetworkImage(imageUrl), fit: BoxFit.cover),
+                  child: ClipOval(
+                    child: Image.network(
+                      imageUrl.isNotEmpty ? imageUrl : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=200&auto=format&fit=crop', // Fallback for artists
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.white10,
+                        child: const Icon(Icons.person, color: Colors.white24, size: 48),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(artist, style: kTitleTextStyle.copyWith(fontSize: 14)),
+                Text(artist, 
+                    style: kTitleTextStyle.copyWith(fontSize: 14),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
                 Text('Artist',
                     style: kSubtitleTextStyle.copyWith(fontSize: 12)),
               ],
@@ -387,12 +571,34 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Expanded(
           child: TappableCard(
-            onTap: () {
-              context.read<PlaybackProvider>().playSong(MusicLibrary.songs[0]);
-              Navigator.push(
-                context,
-                SmoothPageRoute(page: const NowPlayingScreen()),
+            onTap: () async {
+              final song = MusicLibrary.songs[0];
+              final settings = context.read<SettingsProvider>();
+              final downloads = context.read<DownloadProvider>();
+              final playback = context.read<PlaybackProvider>();
+              
+              bool success = await playback.playSong(
+                song,
+                isOffline: settings.isOfflineMode,
+                isDownloaded: downloads.isDownloaded(song.id),
               );
+
+              if (success) {
+                if (mounted) {
+                  context.read<HistoryProvider>().addToHistory(song);
+                }
+                Navigator.push(
+                  context,
+                  SmoothPageRoute(page: const NowPlayingScreen()),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('This song is not available offline.'),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              }
             },
             child: Container(
               height: 180,
@@ -402,13 +608,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.blueAccent,
-                        borderRadius: BorderRadius.circular(12),
-                        image: DecorationImage(
-                          image: NetworkImage(MusicLibrary.songs[0].imageUrl),
-                          fit: BoxFit.cover,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        _tabResults.isNotEmpty ? _tabResults[0].imageUrl : MusicLibrary.songs[0].imageUrl,
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: Colors.white10,
+                          child: const Icon(Icons.star, color: Colors.white24, size: 48),
                         ),
                       ),
                     ),
@@ -427,12 +635,31 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(width: 16),
         Expanded(
           child: TappableCard(
-            onTap: () {
-              context.read<PlaybackProvider>().playSong(MusicLibrary.songs[1]);
-              Navigator.push(
-                context,
-                SmoothPageRoute(page: const NowPlayingScreen()),
+            onTap: () async {
+              final song = MusicLibrary.songs[1];
+              final settings = context.read<SettingsProvider>();
+              final downloads = context.read<DownloadProvider>();
+              final playback = context.read<PlaybackProvider>();
+              
+              bool success = await playback.playSong(
+                song,
+                isOffline: settings.isOfflineMode,
+                isDownloaded: downloads.isDownloaded(song.id),
               );
+
+              if (success) {
+                Navigator.push(
+                  context,
+                  SmoothPageRoute(page: const NowPlayingScreen()),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('This song is not available offline.'),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              }
             },
             child: Container(
               height: 180,
@@ -469,68 +696,95 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecentCard(BuildContext context) {
-    final song = MusicLibrary.songs[3];
-    return TappableCard(
-      onTap: () {
-        context.read<PlaybackProvider>().playSong(song);
-        Navigator.push(
-          context,
-          SmoothPageRoute(page: const NowPlayingScreen()),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: kCardDecoration,
-        child: Row(
+    return Consumer<HistoryProvider>(
+      builder: (context, historyProvider, _) {
+        final history = historyProvider.history;
+        if (history.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        
+        final lastItem = history.first;
+        final song = lastItem.song;
+        final timeAgo = historyProvider.formatTimeAgo(lastItem.playedAt);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                image: DecorationImage(
-                  image: NetworkImage(song.imageUrl),
-                  fit: BoxFit.cover,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Recently Played', style: kTitleTextStyle),
+                TappableCard(
+                  onTap: () {
+                    // Navigate to history if needed
+                  },
+                  child: Text('See All', style: kSubtitleTextStyle.copyWith(color: kCyanColor)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TappableCard(
+              onTap: () async {
+                final settings = context.read<SettingsProvider>();
+                final downloads = context.read<DownloadProvider>();
+                final playback = context.read<PlaybackProvider>();
+                
+                bool success = await playback.playSong(
+                  song,
+                  isOffline: settings.isOfflineMode,
+                  isDownloaded: downloads.isDownloaded(song.id),
+                );
+
+                if (success) {
+                  Navigator.push(
+                    context,
+                    SmoothPageRoute(page: const NowPlayingScreen()),
+                  );
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: kCardDecoration,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        image: DecorationImage(
+                          image: NetworkImage(song.imageUrl),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(song.title,
+                              style: kTitleTextStyle.copyWith(fontSize: 16)),
+                          const SizedBox(height: 4),
+                          Text(song.artist, style: kSubtitleTextStyle),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(song.duration, style: kSubtitleTextStyle.copyWith(fontSize: 12)),
+                        const SizedBox(height: 4),
+                        Text(timeAgo, style: kSubtitleTextStyle.copyWith(fontSize: 11, color: kCyanColor)),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(song.artist,
-                      style: kTitleTextStyle.copyWith(fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text(song.title, style: kSubtitleTextStyle),
-                ],
-              ),
-            ),
-            Consumer<PlaybackProvider>(
-              builder: (context, playback, _) {
-                final isFav = playback.isFavorite(song.id);
-                if (!isFav) return const SizedBox.shrink();
-                return TappableCard(
-                  onTap: () => playback.toggleFavorite(song.id),
-                  child: const Icon(
-                    Icons.favorite,
-                    color: Colors.redAccent,
-                    size: 20,
-                  ),
-                );
-              },
-            ),
-            Consumer<PlaybackProvider>(
-              builder: (context, playback, _) {
-                final isFav = playback.isFavorite(song.id);
-                if (isFav) return const SizedBox(width: 12);
-                return const SizedBox.shrink();
-              },
-            ),
-            Text(song.duration, style: kTitleTextStyle.copyWith(fontSize: 14)),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

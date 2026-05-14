@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart' as yt;
+import 'package:share_plus/share_plus.dart';
+import '../data/music_library.dart';
 import '../constants.dart';
 import '../widgets/tappable_card.dart';
 import '../providers/playback_provider.dart';
 import 'package:just_audio/just_audio.dart';
 import '../providers/feature_provider.dart';
 
-class NowPlayingScreen extends StatelessWidget {
+class NowPlayingScreen extends StatefulWidget {
   const NowPlayingScreen({super.key});
+
+  @override
+  State<NowPlayingScreen> createState() => _NowPlayingScreenState();
+}
+
+class _NowPlayingScreenState extends State<NowPlayingScreen> {
+  double? _dragValue;
 
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, "0");
@@ -16,7 +26,7 @@ class NowPlayingScreen extends StatelessWidget {
     return "$twoDigitMinutes:$twoDigitSeconds";
   }
 
-  void _showUnlockShareDialog(BuildContext context) {
+  void _showUnlockShareDialog(BuildContext context, dynamic song) {
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -65,7 +75,10 @@ class NowPlayingScreen extends StatelessWidget {
                 if (controller.text.trim().toLowerCase() == 'potato') {
                   Navigator.pop(context);
                   context.read<FeatureProvider>().unlockEverything();
-                  _showShareSuccess(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Sharing Unlocked! Click share again.')),
+                  );
+                  _shareSong(song);
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Incorrect safe word!')),
@@ -80,33 +93,11 @@ class NowPlayingScreen extends StatelessWidget {
     );
   }
 
-  void _showShareSuccess(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 48),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Sharing Unlocked!', style: kTitleTextStyle),
-            const SizedBox(height: 8),
-            Text(
-              'You can now share this song to all platforms.',
-              style: kSubtitleTextStyle,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Great!', style: TextStyle(color: kCyanColor)),
-          ),
-        ],
-      ),
-    );
+  void _shareSong(dynamic song) {
+    final String shareText = "Listening to '${song.title}' by ${song.artist} on MELME! 🎵\n\n"
+        "${song.album == 'YouTube' ? 'Check it out here: https://youtu.be/${song.id}' : 'Stream it on MELME!'}";
+    
+    Share.share(shareText, subject: 'Share Song');
   }
 
   @override
@@ -140,11 +131,11 @@ class NowPlayingScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(context, featureProvider),
+                  _buildHeader(context, featureProvider, playback, song),
                   const SizedBox(height: 32),
                   _buildTitleInfo(song),
                   const SizedBox(height: 32),
-                  _buildAlbumArt(song),
+                  _buildAlbumArt(song, playback),
                   const SizedBox(height: 24),
                   _buildPlayerControls(context, playback),
                 ],
@@ -156,7 +147,7 @@ class NowPlayingScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context, FeatureProvider featureProvider) {
+  Widget _buildHeader(BuildContext context, FeatureProvider featureProvider, PlaybackProvider playback, dynamic song) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -175,9 +166,25 @@ class NowPlayingScreen extends StatelessWidget {
         ),
         Text('Now Playing', style: kTitleTextStyle),
         TappableCard(
+          onTap: () => playback.toggleVideoMode(),
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: playback.isVideoMode ? kCyanColor.withOpacity(0.2) : kOrangeColor.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.1), width: 1.5),
+            ),
+            child: Icon(
+              playback.isVideoMode ? Icons.videocam : Icons.audiotrack,
+              color: kTextColor,
+            ),
+          ),
+        ),
+        TappableCard(
           onTap: () => featureProvider.isPremiumUnlocked 
-              ? _showShareSuccess(context) 
-              : _showUnlockShareDialog(context),
+              ? _shareSong(song) 
+              : _showUnlockShareDialog(context, song),
           child: const Icon(Icons.share_outlined, color: kTextColor),
         ),
       ],
@@ -215,15 +222,68 @@ class NowPlayingScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAlbumArt(dynamic song) {
+  Widget _buildAlbumArt(dynamic song, PlaybackProvider playback) {
+    final bool isYouTube = song.album == 'YouTube';
+    
     return Container(
-      height: 200,
+      height: 300,
       width: double.infinity,
-      decoration: kCardDecoration.copyWith(
-        image: DecorationImage(
-          image: NetworkImage(song.imageUrl),
-          fit: BoxFit.cover,
-        ),
+      decoration: kCardDecoration,
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background/Base image
+          Image.network(
+            song.imageUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              color: Colors.grey[900],
+              child: const Icon(Icons.music_note, color: Colors.white24, size: 64),
+            ),
+          ),
+          
+          // YouTube Player (Kept alive but hidden in Audio mode)
+          if (isYouTube && playback.youtubeController != null)
+            Visibility(
+              visible: playback.isVideoMode,
+              maintainState: true,
+              child: yt.YoutubePlayer(
+                controller: playback.youtubeController!,
+                aspectRatio: 16 / 9,
+              ),
+            ),
+            
+          // Glass overlay for Audio mode or when loading
+          if (!playback.isVideoMode || !isYouTube)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+                child: Center(
+                  child: Hero(
+                    tag: 'album_art_${song.id}',
+                    child: Container(
+                      height: 220,
+                      width: 220,
+                      decoration: kCardDecoration.copyWith(
+                        image: DecorationImage(
+                          image: NetworkImage(song.imageUrl),
+                          fit: BoxFit.cover,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.5),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          )
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -252,12 +312,20 @@ class NowPlayingScreen extends StatelessWidget {
                       thumbColor: kCyanColor,
                     ),
                     child: Slider(
-                      value: playback.position.inSeconds.toDouble(),
+                      value: _dragValue ?? playback.position.inSeconds.toDouble(),
                       max: playback.duration.inSeconds.toDouble() > 0 
                           ? playback.duration.inSeconds.toDouble() 
                           : 1.0,
                       onChanged: (value) {
+                        setState(() {
+                          _dragValue = value;
+                        });
+                      },
+                      onChangeEnd: (value) {
                         playback.seek(Duration(seconds: value.toInt()));
+                        setState(() {
+                          _dragValue = null;
+                        });
                       },
                     ),
                   ),

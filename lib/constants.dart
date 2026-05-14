@@ -8,6 +8,8 @@ const Color kOrangeColor = Color(0xFFFB923C); // Lively Accent (Orange)
 const Color kTealColor = Color(0xFF14B8A6); // Peaceful Teal
 const Color kBorderColor = Color(0xFF1E293B); // Subtle Dark Border
 const Color kTextColor = Color(0xFFF8FAFC); // Off-white for text
+const String kYouTubeApiKey = 'AIzaSyCBzJhXM-IZbyqneKZcTMfwqlBxkbGOuk0';
+const String kLastFmApiKey = 'f9f2e8757aee269cb9d21c445a3e7c28';
 
 final BorderRadius kBorderRadius = BorderRadius.circular(24.0);
 

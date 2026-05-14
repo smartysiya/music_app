@@ -6,6 +6,9 @@ import 'package:provider/provider.dart';
 import 'providers/playback_provider.dart';
 import 'providers/user_provider.dart';
 import 'providers/feature_provider.dart';
+import 'providers/settings_provider.dart';
+import 'providers/download_provider.dart';
+import 'providers/history_provider.dart';
 
 void main() {
   SystemChrome.setSystemUIOverlayStyle(
@@ -20,6 +23,9 @@ void main() {
         ChangeNotifierProvider(create: (_) => PlaybackProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => FeatureProvider()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(create: (_) => DownloadProvider()),
+        ChangeNotifierProvider(create: (_) => HistoryProvider()),
       ],
       child: const MusicApp(),
     ),
@@ -32,7 +38,7 @@ class MusicApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Music App UI',
+      title: 'MELME',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         scaffoldBackgroundColor: kBackgroundColor,

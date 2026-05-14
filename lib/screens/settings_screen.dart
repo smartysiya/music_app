@@ -7,6 +7,8 @@ import '../providers/user_provider.dart';
 import 'dart:io';
 import 'package:provider/provider.dart';
 import '../providers/feature_provider.dart';
+import '../providers/settings_provider.dart';
+import '../providers/download_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -22,6 +24,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _streamingWifiOnly = true;
   String _currentLanguage = 'English';
   bool _isEqualizerAuto = true;
+  double _eqBass = 0.8;
+  double _eqMid = 0.5;
+  double _eqTreble = 0.6;
 
   // Advanced Playback State
   String _crossfadeDuration = 'Off';
@@ -30,10 +35,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoplay = true;
   String _outputMode = 'Default System';
 
-  // Audio Quality State
-  String _sampleRate = '44.1 kHz';
-  String _bitDepth = '16-bit';
-  bool _surroundSound = false;
+  // Audio Quality State (Now in SettingsProvider)
 
   void _showMessage(String title, String message) {
     showDialog(
@@ -237,9 +239,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   else
                     Column(
                       children: [
-                        _buildEqSlider('Bass', 0.8),
-                        _buildEqSlider('Mid', 0.5),
-                        _buildEqSlider('Treble', 0.6),
+                        _buildEqSlider('Bass', _eqBass, (val) {
+                          setDialogState(() => _eqBass = val);
+                          setState(() {});
+                        }),
+                        _buildEqSlider('Mid', _eqMid, (val) {
+                          setDialogState(() => _eqMid = val);
+                          setState(() {});
+                        }),
+                        _buildEqSlider('Treble', _eqTreble, (val) {
+                          setDialogState(() => _eqTreble = val);
+                          setState(() {});
+                        }),
                       ],
                     ),
                 ],
@@ -251,7 +262,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildEqSlider(String label, double value) {
+  Widget _buildEqSlider(String label, double value, ValueChanged<double> onChanged) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -271,7 +282,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Slider(
                 value: value,
-                onChanged: (val) {},
+                onChanged: onChanged,
               ),
             ),
           ),
@@ -293,6 +304,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 4),
           Text('Customize your experience', style: kSubtitleTextStyle),
           const SizedBox(height: 24),
+          
+          Consumer2<SettingsProvider, DownloadProvider>(
+            builder: (context, settings, downloads, child) {
+              return _buildSettingsGroup('Downloads & Storage', [
+                _SettingItem(
+                  icon: Icons.offline_bolt_outlined,
+                  title: 'Offline Mode',
+                  subtitle: settings.isOfflineMode 
+                      ? 'Playing downloaded music only' 
+                      : 'Online (Streaming enabled)',
+                  trailing: Switch(
+                    value: settings.isOfflineMode,
+                    activeThumbColor: kCyanColor,
+                    onChanged: (val) => settings.toggleOfflineMode(val),
+                  ),
+                  onTap: () => settings.toggleOfflineMode(!settings.isOfflineMode),
+                ),
+                _SettingItem(
+                  icon: Icons.high_quality_outlined,
+                  title: 'Download Quality',
+                  subtitle: _downloadQuality,
+                  onTap: () => _showSelectionDialog(
+                    'Download Quality',
+                    ['Minimum', 'Normal', 'High'],
+                    _downloadQuality,
+                    (val) => setState(() => _downloadQuality = val),
+                  ),
+                ),
+                _SettingItem(
+                  icon: Icons.sync_rounded,
+                  title: 'Sync Library Offline',
+                  subtitle: downloads.isDownloadingAll 
+                      ? 'Syncing tracks... ${(downloads.downloadProgress * 100).toStringAsFixed(0)}%' 
+                      : 'Save all your music for offline listening',
+                  trailing: downloads.isDownloadingAll 
+                      ? SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            value: downloads.downloadProgress,
+                            strokeWidth: 3,
+                            color: kCyanColor,
+                            backgroundColor: Colors.white10,
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: kCyanColor.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: kCyanColor.withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            'Sync Now',
+                            style: kSubtitleTextStyle.copyWith(color: kCyanColor, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                  onTap: downloads.isDownloadingAll ? null : () => downloads.downloadAll(),
+                ),
+              ]);
+            },
+          ),
+
+          const SizedBox(height: 20),
 
           _buildSettingsGroup('Account', [
             _SettingItem(
@@ -347,17 +422,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Equalizer',
               subtitle: _isEqualizerAuto ? 'Auto Optimized' : 'Manual Mode',
               onTap: _showEqualizerDialog,
-            ),
-            _SettingItem(
-              icon: Icons.download_outlined,
-              title: 'Download Quality',
-              subtitle: _downloadQuality,
-              onTap: () => _showSelectionDialog(
-                'Download Quality',
-                ['Minimum', 'Normal', 'High'],
-                _downloadQuality,
-                (val) => setState(() => _downloadQuality = val),
-              ),
             ),
             _SettingItem(
               icon: Icons.wifi_outlined,
@@ -442,41 +506,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 20),
 
           // New Audio Quality Section
-          _buildSettingsGroup('Audio Quality', [
-            _SettingItem(
-              icon: Icons.high_quality,
-              title: 'Sample Rate',
-              subtitle: _sampleRate,
-              onTap: () => _showSelectionDialog(
-                'Sample Rate',
-                ['44.1 kHz', '48 kHz', '96 kHz'],
-                _sampleRate,
-                (val) => setState(() => _sampleRate = val),
-              ),
-            ),
-            _SettingItem(
-              icon: Icons.graphic_eq,
-              title: 'Bit Depth',
-              subtitle: _bitDepth,
-              onTap: () => _showSelectionDialog(
-                'Bit Depth',
-                ['16-bit', '24-bit', '32-bit (Floating)'],
-                _bitDepth,
-                (val) => setState(() => _bitDepth = val),
-              ),
-            ),
-            _SettingItem(
-              icon: Icons.surround_sound,
-              title: 'Surround Sound',
-              subtitle: _surroundSound ? 'Immersive enabled' : 'Stereo only',
-              trailing: Switch(
-                value: _surroundSound,
-                activeThumbColor: kCyanColor,
-                onChanged: (val) => setState(() => _surroundSound = val),
-              ),
-              onTap: () => setState(() => _surroundSound = !_surroundSound),
-            ),
-          ]),
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              return _buildSettingsGroup('Audio Quality', [
+                _SettingItem(
+                  icon: Icons.high_quality,
+                  title: 'Sample Rate',
+                  subtitle: settings.sampleRate,
+                  onTap: () => _showSelectionDialog(
+                    'Sample Rate',
+                    ['44.1 kHz', '48 kHz', '96 kHz'],
+                    settings.sampleRate,
+                    (val) => settings.setSampleRate(val),
+                  ),
+                ),
+                _SettingItem(
+                  icon: Icons.graphic_eq,
+                  title: 'Bit Depth',
+                  subtitle: settings.bitDepth,
+                  onTap: () => _showSelectionDialog(
+                    'Bit Depth',
+                    ['16-bit', '24-bit', '32-bit (Floating)'],
+                    settings.bitDepth,
+                    (val) => settings.setBitDepth(val),
+                  ),
+                ),
+                _SettingItem(
+                  icon: Icons.surround_sound,
+                  title: 'Surround Sound',
+                  subtitle: settings.surroundSound ? 'Immersive enabled' : 'Stereo only',
+                  trailing: Switch(
+                    value: settings.surroundSound,
+                    activeThumbColor: kCyanColor,
+                    onChanged: (val) => settings.toggleSurroundSound(val),
+                  ),
+                  onTap: () => settings.toggleSurroundSound(!settings.surroundSound),
+                ),
+              ]);
+            },
+          ),
           Padding(
             padding: const EdgeInsets.only(top: 8, left: 24, right: 24),
             child: Row(

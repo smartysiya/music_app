@@ -6,6 +6,8 @@ import '../providers/playback_provider.dart';
 import '../data/music_library.dart';
 import 'now_playing_screen.dart';
 import '../widgets/smooth_page_route.dart';
+import '../providers/settings_provider.dart';
+import '../providers/download_provider.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -153,9 +155,26 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   Widget _buildFavoriteItem(BuildContext context, Song song, PlaybackProvider playback) {
     return TappableCard(
-      onTap: () {
-        playback.playSong(song);
-        Navigator.push(context, SmoothPageRoute(page: const NowPlayingScreen()));
+      onTap: () async {
+        final settings = context.read<SettingsProvider>();
+        final downloads = context.read<DownloadProvider>();
+        
+        bool success = await playback.playSong(
+          song,
+          isOffline: settings.isOfflineMode,
+          isDownloaded: downloads.isDownloaded(song.id),
+        );
+
+        if (success) {
+          Navigator.push(context, SmoothPageRoute(page: const NowPlayingScreen()));
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('This song is not available offline.'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
       },
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -164,7 +183,18 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: Image.network(song.imageUrl, width: 56, height: 56, fit: BoxFit.cover),
+              child: Image.network(
+                song.imageUrl,
+                width: 56,
+                height: 56,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 56,
+                  height: 56,
+                  color: Colors.white10,
+                  child: const Icon(Icons.music_note, color: Colors.white24),
+                ),
+              ),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -176,6 +206,17 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   Text(song.artist, style: kSubtitleTextStyle),
                 ],
               ),
+            ),
+            Consumer<DownloadProvider>(
+              builder: (context, downloads, _) {
+                if (downloads.isDownloaded(song.id)) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: Icon(Icons.download_done, color: kCyanColor.withOpacity(0.5), size: 16),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
             ),
             Text(song.duration, style: kSubtitleTextStyle.copyWith(fontSize: 13)),
             const SizedBox(width: 12),
