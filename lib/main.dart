@@ -9,6 +9,7 @@ import 'providers/feature_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/download_provider.dart';
 import 'providers/history_provider.dart';
+import 'providers/playlist_provider.dart';
 
 void main() {
   SystemChrome.setSystemUIOverlayStyle(
@@ -26,6 +27,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => DownloadProvider()),
         ChangeNotifierProvider(create: (_) => HistoryProvider()),
+        ChangeNotifierProvider(create: (_) => PlaylistProvider()),
       ],
       child: const MusicApp(),
     ),

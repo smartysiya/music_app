@@ -137,6 +137,31 @@ class MyMusicScreen extends StatelessWidget {
               if (item['title'] == 'Lyric') {
                 Navigator.push(
                     context, SmoothPageRoute(page: const LyricScreen()));
+              } else if (item['title'] == 'Videos') {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    backgroundColor: const Color(0xFF1E293B),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    title: Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: Colors.orangeAccent),
+                        const SizedBox(width: 12),
+                        Text('Service Unavailable', style: kTitleTextStyle),
+                      ],
+                    ),
+                    content: Text(
+                      'The video service is currently under maintenance. Please try again later.',
+                      style: kSubtitleTextStyle,
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('OK', style: TextStyle(color: kCyanColor, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                );
               } else {
                 // Navigate to PlaylistScreen with the correct category title
                 Navigator.push(
@@ -206,7 +231,7 @@ class MyMusicScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         image: const DecorationImage(
                           image: NetworkImage(
-                              'https://images.unsplash.com/photo-1493225457124-a1a2a5f5f92a?w=500'),
+                              'https://images.unsplash.com/photo-1459749411177-042180ec7739?w=500'),
                           fit: BoxFit.cover,
                         ),
                       ),

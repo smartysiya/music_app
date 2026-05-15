@@ -7,7 +7,6 @@ import '../services/audio_service.dart';
 import '../services/youtube_service.dart';
 import 'history_provider.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart' as yt;
 
 class PlaybackProvider extends ChangeNotifier {
   final AudioService _audioService = AudioService();
@@ -21,9 +20,7 @@ class PlaybackProvider extends ChangeNotifier {
   LoopMode _loopMode = LoopMode.off;
   bool _isShuffleEnabled = false;
   final List<String> _favoriteSongIds = []; 
-  yt.YoutubePlayerController? _ytController;
-  Timer? _ytPositionTimer;
-  bool _isVideoMode = true;
+  String? _lastErrorMessage;
 
   Song? get currentSong => _currentSong;
   bool get isPlaying => _isPlaying;
@@ -33,9 +30,7 @@ class PlaybackProvider extends ChangeNotifier {
   LoopMode get loopMode => _loopMode;
   bool get isShuffleEnabled => _isShuffleEnabled;
   List<String> get favoriteSongIds => _favoriteSongIds;
-  yt.YoutubePlayerController? get youtubeController => _ytController;
-  bool get isVideoMode => _isVideoMode;
-
+  String? get lastErrorMessage => _lastErrorMessage;
   bool isFavorite(String songId) => _favoriteSongIds.contains(songId);
 
   void toggleFavorite(String songId) {
@@ -142,7 +137,7 @@ class PlaybackProvider extends ChangeNotifier {
       return true;
     }
 
-    // If song ID is empty (e.g. from Last.fm metadata), find it first
+    // If song ID is empty (e.g. from metadata), find it first
     String videoId = song.id;
     if (videoId.isEmpty) {
       debugPrint('Finding YouTube ID for: ${song.title} by ${song.artist}');
@@ -152,100 +147,58 @@ class PlaybackProvider extends ChangeNotifier {
         return false;
       }
       videoId = foundId;
-      // Update the song object with YouTube ID and YouTube Visuals (images)
-      final ytResults = await _youtubeService.searchSongs('${song.title} ${song.artist}');
-      final ytImage = ytResults.isNotEmpty ? ytResults[0].imageUrl : '';
-      
-      song = song.copyWith(
-        id: videoId,
-        imageUrl: ytImage,
-        license: 'YouTube Standard License', // Media visuals/audio from YouTube
-      );
+      song = song.copyWith(id: videoId);
     }
 
     if (isInLibrary) {
       debugPrint('Playing library song: ${song.title}');
-      await _ytController?.pauseVideo();
       final index = MusicLibrary.songs.indexWhere((s) => s.id == song.id);
       await _audioService.loadAndPlay(index);
       _currentSong = song;
       notifyListeners();
       return true;
     } else {
-      // YouTube song - use IFrame Player
-      debugPrint('Playing YouTube song: ${song.title} (${song.id})');
-      await _audioService.stop();
+      // YouTube song — fetch fresh metadata + resolve audio stream
+      debugPrint('Playing YouTube audio: ${song.title} (${song.id})');
       
-      // Close/Dispose old controller to ensure fresh state
-      _ytController?.close();
-      
-      _ytController = yt.YoutubePlayerController.fromVideoId(
-        videoId: song.id,
-        autoPlay: true,
-        params: const yt.YoutubePlayerParams(
-          showControls: true,
-          showFullscreenButton: true,
-          mute: false,
-          showVideoAnnotations: false,
-          playsInline: true,
-        ),
+      // Fetch real metadata from YouTube API to update title/artist/duration/thumbnail
+      final freshMetadata = await _youtubeService.fetchVideoMetadata(
+        videoId,
+        existing: song,
       );
       
-      // Listen to state changes
-      _ytController!.listen((state) {
-        if (state.playerState == yt.PlayerState.playing) {
-          _isPlaying = true;
-          _startYtPositionTimer();
-        } else if (state.playerState == yt.PlayerState.paused) {
-          _isPlaying = false;
-          _stopYtPositionTimer();
-        } else if (state.playerState == yt.PlayerState.ended) {
-          _isPlaying = false;
-          _stopYtPositionTimer();
-          skipNext();
-        }
+      if (freshMetadata != null) {
+        // Update song with authoritative metadata from YouTube
+        song = freshMetadata;
+        debugPrint('Metadata updated: "${song.title}" by ${song.artist} [${song.duration}]');
         
-        // Update duration from YouTube state (position fix pending)
-        if (state.metaData.duration.inSeconds > 0) {
-          _duration = state.metaData.duration;
-        }
-        
+        // Immediately update UI with fresh metadata (before audio loads)
+        _currentSong = song;
         notifyListeners();
-      });
+      } else {
+        debugPrint('Metadata fetch failed — using existing metadata for: ${song.title}');
+      }
 
-      _currentSong = song;
-      _isPlaying = true;
-      notifyListeners();
-      return true;
-    }
-
-    
-    return false;
-  }
-
-  Future<void> resume() async {
-    if (_ytController != null && !MusicLibrary.songs.any((s) => s.id == _currentSong?.id)) {
-      await _ytController!.playVideo();
-    } else {
-      await _audioService.play();
-    }
-  }
-
-  Future<void> pause() async {
-    if (_ytController != null && !MusicLibrary.songs.any((s) => s.id == _currentSong?.id)) {
-      await _ytController!.pauseVideo();
-    } else {
-      await _audioService.pause();
+      // Now resolve and play the audio stream
+      final success = await _audioService.loadAndPlayUrl(song.id, song);
+      
+      if (success) {
+        // Ensure the current song reflects the version that was actually loaded
+        _currentSong = song;
+        _lastErrorMessage = null;
+        notifyListeners();
+        return true;
+      }
+      
+      _lastErrorMessage = _audioService.lastErrorMessage;
+      debugPrint('All resolution tiers failed for: ${song.title}');
+      return false;
     }
   }
 
-  Future<void> seek(Duration position) async {
-    if (_ytController != null && !MusicLibrary.songs.any((s) => s.id == _currentSong?.id)) {
-      await _ytController!.seekTo(seconds: position.inSeconds.toDouble(), allowSeekAhead: true);
-    } else {
-      await _audioService.seek(position);
-    }
-  }
+  Future<void> resume() async => await _audioService.play();
+  Future<void> pause() async => await _audioService.pause();
+  Future<void> seek(Duration position) async => await _audioService.seek(position);
   
   Future<void> skipNext() async {
     if (_currentSong?.album == 'YouTube') {
@@ -263,8 +216,7 @@ class PlaybackProvider extends ChangeNotifier {
 
   Future<void> skipPrevious() async {
     if (_currentSong?.album == 'YouTube') {
-       // For YouTube, "previous" just restarts or plays a related song
-       await _ytController?.seekTo(seconds: 0);
+       await seek(Duration.zero);
     } else {
       await _audioService.skipPrevious();
     }
@@ -285,32 +237,9 @@ class PlaybackProvider extends ChangeNotifier {
     await _audioService.setVolume(volume);
   }
 
-  void toggleVideoMode() {
-    _isVideoMode = !_isVideoMode;
-    notifyListeners();
-  }
-
-  void _startYtPositionTimer() {
-    _ytPositionTimer?.cancel();
-    _ytPositionTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (_ytController != null && _isPlaying) {
-        final time = await _ytController!.currentTime;
-        _position = Duration(seconds: time.toInt());
-        notifyListeners();
-      }
-    });
-  }
-
-  void _stopYtPositionTimer() {
-    _ytPositionTimer?.cancel();
-    _ytPositionTimer = null;
-  }
-
   @override
   void dispose() {
-    _stopYtPositionTimer();
     _audioService.dispose();
-    _ytController?.close();
     super.dispose();
   }
 }

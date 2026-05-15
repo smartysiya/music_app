@@ -5,8 +5,9 @@ import 'package:flutter/material.dart';
 class SmoothPageRoute<T> extends PageRouteBuilder<T> {
   final Widget page;
 
-  SmoothPageRoute({required this.page})
+  SmoothPageRoute({required this.page, RouteSettings? settings})
       : super(
+          settings: settings,
           transitionDuration: const Duration(milliseconds: 350),
           reverseTransitionDuration: const Duration(milliseconds: 300),
           pageBuilder: (context, animation, secondaryAnimation) => page,

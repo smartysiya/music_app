@@ -5,6 +5,7 @@ import '../providers/playback_provider.dart';
 import '../screens/now_playing_screen.dart';
 import '../widgets/smooth_page_route.dart';
 import '../widgets/tappable_card.dart';
+import '../widgets/now_playing_navigator.dart';
 
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
@@ -18,7 +19,7 @@ class MiniPlayer extends StatelessWidget {
 
     return TappableCard(
       onTap: () {
-        Navigator.push(context, SmoothPageRoute(page: const NowPlayingScreen()));
+        NowPlayingNavigator.open(context);
       },
       child: Container(
         height: 64,

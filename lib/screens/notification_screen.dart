@@ -160,7 +160,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     children: [
                       Icon(Icons.notifications_off_outlined, color: Colors.white24, size: 64),
                       const SizedBox(height: 16),
-                      Text('No notifications', style: kSubtitleTextStyle),
+                      Text("You're all caught up! No new notifications at the moment.", 
+                          style: kSubtitleTextStyle, textAlign: TextAlign.center),
                     ],
                   ),
                 )

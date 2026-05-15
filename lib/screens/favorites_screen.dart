@@ -4,10 +4,9 @@ import '../constants.dart';
 import '../widgets/tappable_card.dart';
 import '../providers/playback_provider.dart';
 import '../data/music_library.dart';
-import 'now_playing_screen.dart';
-import '../widgets/smooth_page_route.dart';
 import '../providers/settings_provider.dart';
 import '../providers/download_provider.dart';
+import '../widgets/now_playing_navigator.dart';
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -131,9 +130,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         children: [
           Icon(Icons.favorite_border, size: 64, color: kTextColor.withOpacity(0.1)),
           const SizedBox(height: 16),
-          Text('No favorites yet', style: kTitleTextStyle.copyWith(color: kTextColor.withOpacity(0.4))),
+          Text("You haven't added any favorites yet", style: kTitleTextStyle.copyWith(color: kTextColor.withOpacity(0.4))),
           const SizedBox(height: 8),
-          Text('Songs you heart will appear here', style: kSubtitleTextStyle),
+          Text("Heart the songs you love and they'll always be here for you!", style: kSubtitleTextStyle, textAlign: TextAlign.center),
         ],
       ),
     );
@@ -166,11 +165,11 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         );
 
         if (success) {
-          Navigator.push(context, SmoothPageRoute(page: const NowPlayingScreen()));
+          NowPlayingNavigator.open(context);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('This song is not available offline.'),
+            SnackBar(
+              content: Text(playback.lastErrorMessage ?? "We're sorry, this song is not available offline."),
               backgroundColor: Colors.redAccent,
             ),
           );

@@ -6,11 +6,13 @@ class SettingsProvider extends ChangeNotifier {
   String _sampleRate = '44.1 kHz';
   String _bitDepth = '16-bit';
   bool _surroundSound = false;
+  String _playerTheme = 'vibrant'; // 'classic', 'vibrant', 'minimalist'
 
   bool get isOfflineMode => _isOfflineMode;
   String get sampleRate => _sampleRate;
   String get bitDepth => _bitDepth;
   bool get surroundSound => _surroundSound;
+  String get playerTheme => _playerTheme;
 
   SettingsProvider() {
     _loadSettings();
@@ -22,6 +24,7 @@ class SettingsProvider extends ChangeNotifier {
     _sampleRate = prefs.getString('sample_rate') ?? '44.1 kHz';
     _bitDepth = prefs.getString('bit_depth') ?? '16-bit';
     _surroundSound = prefs.getBool('surround_sound') ?? false;
+    _playerTheme = prefs.getString('player_theme') ?? 'classic';
     notifyListeners();
   }
 
@@ -50,6 +53,13 @@ class SettingsProvider extends ChangeNotifier {
     _surroundSound = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('surround_sound', value);
+    notifyListeners();
+  }
+
+  Future<void> setPlayerTheme(String value) async {
+    _playerTheme = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('player_theme', value);
     notifyListeners();
   }
 }

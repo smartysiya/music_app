@@ -6,8 +6,8 @@ import '../providers/history_provider.dart';
 import '../providers/playback_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/download_provider.dart';
-import 'now_playing_screen.dart';
-import '../widgets/smooth_page_route.dart';
+import '../providers/download_provider.dart';
+import '../widgets/now_playing_navigator.dart';
 
 class RecentlyPlayedScreen extends StatefulWidget {
   const RecentlyPlayedScreen({super.key});
@@ -74,7 +74,11 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen>
 
     if (history.isEmpty) {
       return Center(
-        child: Text('No recently played songs', style: kSubtitleTextStyle),
+        child: Padding(
+          padding: const EdgeInsets.all(40.0),
+          child: Text("Your listening journey hasn't started yet. Let's find some beautiful music to play!", 
+              style: kSubtitleTextStyle, textAlign: TextAlign.center),
+        ),
       );
     }
 
@@ -156,9 +160,15 @@ class _RecentlyPlayedScreenState extends State<RecentlyPlayedScreen>
         if (success) {
           historyProvider.addToHistory(song);
           if (context.mounted) {
-            Navigator.push(
-              context,
-              SmoothPageRoute(page: const NowPlayingScreen()),
+            NowPlayingNavigator.open(context);
+          }
+        } else {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(playback.lastErrorMessage ?? "We're sorry, we couldn't play this song."),
+                backgroundColor: Colors.redAccent,
+              ),
             );
           }
         }

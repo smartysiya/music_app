@@ -13,7 +13,9 @@ import 'notification_screen.dart';
 import '../providers/settings_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/history_provider.dart';
-import '../services/lastfm_service.dart';
+import '../providers/playlist_provider.dart';
+import 'playlist_detail_screen.dart';
+import '../widgets/now_playing_navigator.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,7 +35,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   final TextEditingController _searchController = TextEditingController();
   final YouTubeService _youtubeService = YouTubeService();
-  final LastFmService _lastFmService = LastFmService();
   List<Song> _youtubeResults = [];
   List<Song> _tabResults = [];
   bool _isSearching = false;
@@ -54,13 +55,13 @@ class _HomeScreenState extends State<HomeScreen> {
     
     try {
       if (tab == 'Overview') {
-        results = await _lastFmService.getTopTracks();
+        results = MusicLibrary.songs.take(10).toList();
       } else if (tab == 'Songs') {
-        results = await _lastFmService.getTopTracks(); // Or a specific chart
+        results = MusicLibrary.songs;
       } else if (tab == 'Album') {
-        results = await _lastFmService.searchAlbums('Top hits 2024');
+        results = MusicLibrary.songs;
       } else if (tab == 'Artist') {
-        results = await _lastFmService.getTopArtists();
+        results = MusicLibrary.songs;
       }
     } catch (e) {
       debugPrint('Error loading tab data: $e');
@@ -76,11 +77,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _onAlbumTap(Song album) async {
     setState(() => _isLoadingTab = true);
-    final tracks = await _lastFmService.getAlbumTracks(album.artist, album.title);
     if (mounted) {
       setState(() {
-        // Carry over the album art to tracks since Last.fm track info often lacks it
-        _tabResults = tracks.map((t) => t.copyWith(imageUrl: album.imageUrl)).toList();
+        _tabResults = MusicLibrary.songs.where((s) => s.album == album.album).toList();
         _selectedTab = 'Songs';
         _isLoadingTab = false;
       });
@@ -89,7 +88,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _onArtistTap(Song artist) async {
     setState(() => _isLoadingTab = true);
-    // Search for the artist's top songs on YouTube
     final results = await _youtubeService.searchSongs('${artist.title} top songs');
     if (mounted) {
       setState(() {
@@ -110,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     setState(() => _isSearching = true);
-    final results = await _lastFmService.searchTracks(query);
+    final results = await _youtubeService.searchSongs(query);
     if (mounted) {
       setState(() {
         _youtubeResults = results;
@@ -186,9 +184,19 @@ class _HomeScreenState extends State<HomeScreen> {
       default:
         return Column(
           children: [
+            if (context.watch<PlaylistProvider>().playlists.isNotEmpty) ...[
+              _buildPlaylistsSection(context),
+              const SizedBox(height: 24),
+            ],
             _buildFeaturedCards(context),
             const SizedBox(height: 24),
             _buildRecentCard(context),
+            const SizedBox(height: 24),
+            _buildSectionHeader('Trending Songs', () {
+              setState(() => _selectedTab = 'Songs');
+            }),
+            const SizedBox(height: 16),
+            _buildSongsList(),
           ],
         );
     }
@@ -324,11 +332,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSearchResults() {
     if (_filteredSongs.isEmpty && _youtubeResults.isEmpty && !_isSearching) {
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 40),
-          child: Text('No results found for "$_searchQuery"',
-              style: kSubtitleTextStyle),
-        ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40.0),
+            child: Text("We couldn't find any matches for \"$_searchQuery\". Maybe try a different keyword or check the spelling?",
+                style: kSubtitleTextStyle, textAlign: TextAlign.center),
+          ),
       );
     }
 
@@ -368,7 +376,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildSongItem(Song song) {
     return GestureDetector(
-      onDoubleTap: () => showSongInfoDialog(context, song),
+      onLongPress: () => _showAddToPlaylistDialog(context, song),
       child: TappableCard(
         onTap: () async {
           final settings = context.read<SettingsProvider>();
@@ -384,14 +392,14 @@ class _HomeScreenState extends State<HomeScreen> {
           if (success) {
             if (mounted) {
               context.read<HistoryProvider>().addToHistory(song);
+              NowPlayingNavigator.open(context);
             }
-            Navigator.push(
-                context, SmoothPageRoute(page: const NowPlayingScreen()));
           } else {
             final isInLibrary = MusicLibrary.songs.any((s) => s.id == song.id);
-            String message = (settings.isOfflineMode && isInLibrary) 
-                ? 'This song is not available offline.' 
-                : 'Failed to stream song. Please check your connection.';
+            String message = playback.lastErrorMessage ?? 
+                ((settings.isOfflineMode && isInLibrary) 
+                    ? "We're sorry, this song is not available offline." 
+                    : "We're sorry, we couldn't stream this song. Please check your connection.");
                 
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -540,7 +548,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: ClipOval(
                     child: Image.network(
-                      imageUrl.isNotEmpty ? imageUrl : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=200&auto=format&fit=crop', // Fallback for artists
+                      imageUrl.isNotEmpty ? imageUrl : 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=200&auto=format&fit=crop',
                       fit: BoxFit.cover,
                       width: double.infinity,
                       errorBuilder: (context, error, stackTrace) => Container(
@@ -567,129 +575,85 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildFeaturedCards(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: TappableCard(
-            onTap: () async {
-              final song = MusicLibrary.songs[0];
-              final settings = context.read<SettingsProvider>();
-              final downloads = context.read<DownloadProvider>();
-              final playback = context.read<PlaybackProvider>();
-              
-              bool success = await playback.playSong(
-                song,
-                isOffline: settings.isOfflineMode,
-                isDownloaded: downloads.isDownloaded(song.id),
-              );
+    final song = MusicLibrary.songs[1];
+    return TappableCard(
+      onTap: () async {
+        final settings = context.read<SettingsProvider>();
+        final downloads = context.read<DownloadProvider>();
+        final playback = context.read<PlaybackProvider>();
+        
+        bool success = await playback.playSong(
+          song,
+          isOffline: settings.isOfflineMode,
+          isDownloaded: downloads.isDownloaded(song.id),
+        );
 
-              if (success) {
-                if (mounted) {
-                  context.read<HistoryProvider>().addToHistory(song);
-                }
-                Navigator.push(
-                  context,
-                  SmoothPageRoute(page: const NowPlayingScreen()),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('This song is not available offline.'),
-                    backgroundColor: Colors.redAccent,
+        if (success) {
+          if (mounted) {
+            context.read<HistoryProvider>().addToHistory(song);
+            NowPlayingNavigator.open(context);
+          }
+        }
+      },
+      child: Container(
+        height: 200,
+        padding: const EdgeInsets.all(16),
+        decoration: kCardDecoration,
+        child: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  image: DecorationImage(
+                    image: NetworkImage(song.imageUrl),
+                    fit: BoxFit.cover,
                   ),
-                );
-              }
-            },
-            child: Container(
-              height: 180,
-              padding: const EdgeInsets.all(12),
-              decoration: kCardDecoration,
+                ),
+              ),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              flex: 2,
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        _tabResults.isNotEmpty ? _tabResults[0].imageUrl : MusicLibrary.songs[0].imageUrl,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          color: Colors.white10,
-                          child: const Icon(Icons.star, color: Colors.white24, size: 48),
-                        ),
-                      ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: kCyanColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
+                    child: Text('LIVE',
+                        style: kSubtitleTextStyle.copyWith(
+                            color: kCyanColor, fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(height: 12),
-                  Text('20 Song',
-                      style: kSubtitleTextStyle.copyWith(
-                          color: kCyanColor, fontSize: 12)),
-                  Text(MusicLibrary.songs[0].artist,
-                      style: kTitleTextStyle.copyWith(fontSize: 14)),
+                  Text(song.title,
+                      style: kTitleTextStyle.copyWith(fontSize: 18)),
+                  Text(song.artist,
+                      style: kSubtitleTextStyle.copyWith(fontSize: 14)),
+                  const SizedBox(height: 16),
+                  const Icon(Icons.play_circle_fill, color: kCyanColor, size: 32),
                 ],
               ),
             ),
-          ),
+          ],
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: TappableCard(
-            onTap: () async {
-              final song = MusicLibrary.songs[1];
-              final settings = context.read<SettingsProvider>();
-              final downloads = context.read<DownloadProvider>();
-              final playback = context.read<PlaybackProvider>();
-              
-              bool success = await playback.playSong(
-                song,
-                isOffline: settings.isOfflineMode,
-                isDownloaded: downloads.isDownloaded(song.id),
-              );
+      ),
+    );
+  }
 
-              if (success) {
-                Navigator.push(
-                  context,
-                  SmoothPageRoute(page: const NowPlayingScreen()),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('This song is not available offline.'),
-                    backgroundColor: Colors.redAccent,
-                  ),
-                );
-              }
-            },
-            child: Container(
-              height: 180,
-              padding: const EdgeInsets.all(12),
-              decoration: kCardDecoration,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.purpleAccent,
-                        borderRadius: BorderRadius.circular(12),
-                        image: DecorationImage(
-                          image: NetworkImage(MusicLibrary.songs[1].imageUrl),
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text('20 Song',
-                      style: kSubtitleTextStyle.copyWith(
-                          color: kCyanColor, fontSize: 12)),
-                  Text(MusicLibrary.songs[1].artist,
-                      style: kTitleTextStyle.copyWith(fontSize: 14)),
-                ],
-              ),
-            ),
-          ),
+  Widget _buildSectionHeader(String title, VoidCallback onTap) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: kTitleTextStyle),
+        TappableCard(
+          onTap: onTap,
+          child: Text('See All', style: kSubtitleTextStyle.copyWith(color: kCyanColor)),
         ),
       ],
     );
@@ -736,10 +700,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
 
                 if (success) {
-                  Navigator.push(
-                    context,
-                    SmoothPageRoute(page: const NowPlayingScreen()),
-                  );
+                  NowPlayingNavigator.open(context);
                 }
               },
               child: Container(
@@ -785,6 +746,264 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildPlaylistsSection(BuildContext context) {
+    return Consumer<PlaylistProvider>(
+      builder: (context, playlistProvider, _) {
+        final playlists = playlistProvider.playlists;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Your Playlists', style: kTitleTextStyle),
+                TappableCard(
+                  onTap: () => _showCreatePlaylistDialog(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: kCyanColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: kCyanColor.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.add, color: kCyanColor, size: 18),
+                        const SizedBox(width: 6),
+                        Text('New', style: kSubtitleTextStyle.copyWith(color: kCyanColor, fontWeight: FontWeight.bold, fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (playlists.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: kCardDecoration,
+                child: Column(
+                  children: [
+                    Icon(Icons.queue_music, color: kCyanColor.withOpacity(0.3), size: 40),
+                    const SizedBox(height: 12),
+                    Text("You haven't created any playlists yet. Start building your own musical collections!", 
+                        style: kSubtitleTextStyle, textAlign: TextAlign.center),
+                    const SizedBox(height: 4),
+                    Text('Tap "+ New" to create one', style: kSubtitleTextStyle.copyWith(fontSize: 11)),
+                  ],
+                ),
+              )
+            else
+              SizedBox(
+                height: 140,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: playlists.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final playlist = playlists[index];
+                    final songs = playlistProvider.getSongsForPlaylist(playlist.id);
+                    return TappableCard(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          SmoothPageRoute(page: PlaylistDetailScreen(playlistId: playlist.id)),
+                        );
+                      },
+                      child: Container(
+                        width: 140,
+                        padding: const EdgeInsets.all(12),
+                        decoration: kCardDecoration,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  color: kCyanColor.withOpacity(0.08),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: songs.isEmpty
+                                    ? const Center(child: Icon(Icons.queue_music, color: kCyanColor, size: 32))
+                                    : Image.network(songs[0].imageUrl, fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => const Center(
+                                          child: Icon(Icons.music_note, color: Colors.white24, size: 32),
+                                        )),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              playlist.name,
+                              style: kTitleTextStyle.copyWith(fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '${songs.length} songs',
+                              style: kSubtitleTextStyle.copyWith(fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showCreatePlaylistDialog(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text('Create Playlist', style: kTitleTextStyle),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: kTextColor),
+          decoration: InputDecoration(
+            hintText: 'Playlist name',
+            hintStyle: kSubtitleTextStyle.copyWith(color: Colors.white24),
+            filled: true,
+            fillColor: kBackgroundColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white38)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final playlist = await context.read<PlaylistProvider>().createPlaylist(controller.text);
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Playlist "${playlist.name}" created!'),
+                  backgroundColor: const Color(0xFF1E293B),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text('Create', style: TextStyle(color: kCyanColor, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddToPlaylistDialog(BuildContext context, Song song) {
+    final playlistProvider = context.read<PlaylistProvider>();
+    final playlists = playlistProvider.playlists;
+
+    if (playlists.isEmpty) {
+      _showCreatePlaylistDialog(context);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Text('Add to Playlist', style: kTitleTextStyle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ...playlists.map((playlist) {
+              final alreadyAdded = playlist.songIds.contains(song.id);
+              return TappableCard(
+                onTap: alreadyAdded
+                    ? null
+                    : () {
+                        playlistProvider.addSongToPlaylist(playlist.id, song.id);
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Added "${song.title}" to ${playlist.name}'),
+                            backgroundColor: const Color(0xFF1E293B),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: alreadyAdded
+                        ? Colors.white.withOpacity(0.03)
+                        : kCyanColor.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: alreadyAdded
+                          ? Colors.white.withOpacity(0.05)
+                          : kCyanColor.withOpacity(0.2),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.queue_music, color: alreadyAdded ? Colors.white24 : kCyanColor, size: 22),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          playlist.name,
+                          style: kTitleTextStyle.copyWith(
+                            fontSize: 14,
+                            color: alreadyAdded ? Colors.white38 : kTextColor,
+                          ),
+                        ),
+                      ),
+                      if (alreadyAdded)
+                        const Icon(Icons.check, color: Colors.white24, size: 18)
+                      else
+                        const Icon(Icons.add, color: kCyanColor, size: 18),
+                    ],
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 8),
+            TappableCard(
+              onTap: () {
+                Navigator.pop(ctx);
+                _showCreatePlaylistDialog(context);
+              },
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: kOrangeColor.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: kOrangeColor.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.add_circle_outline, color: kOrangeColor, size: 22),
+                    const SizedBox(width: 12),
+                    Text('Create new playlist', style: kTitleTextStyle.copyWith(fontSize: 14, color: kOrangeColor)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

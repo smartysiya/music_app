@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:youtube_player_iframe/youtube_player_iframe.dart' as yt;
 import 'package:share_plus/share_plus.dart';
 import '../data/music_library.dart';
 import '../constants.dart';
@@ -8,6 +7,9 @@ import '../widgets/tappable_card.dart';
 import '../providers/playback_provider.dart';
 import 'package:just_audio/just_audio.dart';
 import '../providers/feature_provider.dart';
+import '../providers/settings_provider.dart';
+import '../widgets/player/vibrant_player.dart';
+import '../widgets/player/minimalist_player.dart';
 
 class NowPlayingScreen extends StatefulWidget {
   const NowPlayingScreen({super.key});
@@ -107,7 +109,23 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final featureProvider = context.watch<FeatureProvider>();
 
     if (song == null) {
-      return const Scaffold(body: Center(child: Text("No song playing")));
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(40.0),
+            child: Text("No music is playing at the moment. Pick a song and let the rhythm take over!", 
+                style: kSubtitleTextStyle, textAlign: TextAlign.center),
+          ),
+        )
+      );
+    }
+
+    final settings = context.watch<SettingsProvider>();
+    
+    if (settings.playerTheme == 'vibrant') {
+      return VibrantPlayer(song: song, playback: playback);
+    } else if (settings.playerTheme == 'minimalist') {
+      return MinimalistPlayer(song: song, playback: playback);
     }
 
     return Container(
@@ -166,22 +184,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         ),
         Text('Now Playing', style: kTitleTextStyle),
         TappableCard(
-          onTap: () => playback.toggleVideoMode(),
-          child: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: playback.isVideoMode ? kCyanColor.withOpacity(0.2) : kOrangeColor.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.1), width: 1.5),
-            ),
-            child: Icon(
-              playback.isVideoMode ? Icons.videocam : Icons.audiotrack,
-              color: kTextColor,
-            ),
-          ),
-        ),
-        TappableCard(
           onTap: () => featureProvider.isPremiumUnlocked 
               ? _shareSong(song) 
               : _showUnlockShareDialog(context, song),
@@ -223,8 +225,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 
   Widget _buildAlbumArt(dynamic song, PlaybackProvider playback) {
-    final bool isYouTube = song.album == 'YouTube';
-    
     return Container(
       height: 300,
       width: double.infinity,
@@ -243,46 +243,34 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             ),
           ),
           
-          // YouTube Player (Kept alive but hidden in Audio mode)
-          if (isYouTube && playback.youtubeController != null)
-            Visibility(
-              visible: playback.isVideoMode,
-              maintainState: true,
-              child: yt.YoutubePlayer(
-                controller: playback.youtubeController!,
-                aspectRatio: 16 / 9,
-              ),
-            ),
-            
-          // Glass overlay for Audio mode or when loading
-          if (!playback.isVideoMode || !isYouTube)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withOpacity(0.3),
-                child: Center(
-                  child: Hero(
-                    tag: 'album_art_${song.id}',
-                    child: Container(
-                      height: 220,
-                      width: 220,
-                      decoration: kCardDecoration.copyWith(
-                        image: DecorationImage(
-                          image: NetworkImage(song.imageUrl),
-                          fit: BoxFit.cover,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.5),
-                            blurRadius: 20,
-                            spreadRadius: 5,
-                          )
-                        ],
+          // Glass overlay for Audio mode
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.3),
+              child: Center(
+                child: Hero(
+                  tag: 'album_art_${song.id}',
+                  child: Container(
+                    height: 220,
+                    width: 220,
+                    decoration: kCardDecoration.copyWith(
+                      image: DecorationImage(
+                        image: NetworkImage(song.imageUrl),
+                        fit: BoxFit.cover,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          blurRadius: 20,
+                          spreadRadius: 5,
+                        )
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
+          ),
         ],
       ),
     );

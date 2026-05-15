@@ -494,14 +494,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 20),
 
-          _buildSettingsGroup('Appearance', [
-            _SettingItem(
-              icon: Icons.palette_outlined,
-              title: 'Themes',
-              subtitle: 'Vibrant Dark (Active)',
-              onTap: _showThemeDialog,
-            ),
-          ]),
+          Consumer<SettingsProvider>(
+            builder: (context, settings, _) {
+              return _buildSettingsGroup('Appearance', [
+                _SettingItem(
+                  icon: Icons.palette_outlined,
+                  title: 'App Themes',
+                  subtitle: 'Vibrant Dark (Active)',
+                  onTap: _showThemeDialog,
+                ),
+                _SettingItem(
+                  icon: Icons.play_circle_outline,
+                  title: 'Player Interface',
+                  subtitle: settings.playerTheme.toUpperCase(),
+                  onTap: _showPlayerInterfaceDialog,
+                ),
+              ]);
+            },
+          ),
 
           const SizedBox(height: 20),
 
@@ -667,6 +677,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       else
                         const Icon(Icons.check_circle,
                             color: kCyanColor, size: 18),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showPlayerInterfaceDialog() {
+    final settings = context.read<SettingsProvider>();
+    final List<Map<String, dynamic>> interfaces = [
+      {'id': 'classic', 'name': 'Classic Glass', 'icon': Icons.layers_outlined},
+      {'id': 'vibrant', 'name': 'Vibrant Bold', 'icon': Icons.bolt},
+      {'id': 'minimalist', 'name': 'Minimalist Organic', 'icon': Icons.eco_outlined},
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text('Player Interface', style: kTitleTextStyle),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: interfaces.map((ui) {
+              final isSelected = settings.playerTheme == ui['id'];
+              return TappableCard(
+                onTap: () {
+                  settings.setPlayerTheme(ui['id']);
+                  Navigator.pop(context);
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isSelected ? kCyanColor.withOpacity(0.1) : const Color(0xFF0F172A).withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected ? kCyanColor.withOpacity(0.5) : Colors.white.withOpacity(0.05),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(ui['icon'], color: isSelected ? kCyanColor : kTextColor, size: 24),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          ui['name'],
+                          style: kTitleTextStyle.copyWith(
+                            fontSize: 15,
+                            color: isSelected ? kCyanColor : kTextColor,
+                          ),
+                        ),
+                      ),
+                      if (isSelected) const Icon(Icons.check_circle, color: kCyanColor, size: 18),
                     ],
                   ),
                 ),

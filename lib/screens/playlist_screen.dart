@@ -4,11 +4,10 @@ import '../constants.dart';
 import '../widgets/tappable_card.dart';
 import '../data/music_library.dart';
 import '../providers/playback_provider.dart';
-import 'now_playing_screen.dart';
-import '../widgets/smooth_page_route.dart';
 import '../providers/settings_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/history_provider.dart';
+import '../widgets/now_playing_navigator.dart';
 
 class PlaylistScreen extends StatelessWidget {
   final String title;
@@ -99,12 +98,13 @@ class PlaylistScreen extends StatelessWidget {
 
           if (success) {
             context.read<HistoryProvider>().addToHistory(song);
-            Navigator.push(context, SmoothPageRoute(page: const NowPlayingScreen()));
+            NowPlayingNavigator.open(context);
           } else {
             final isInLibrary = MusicLibrary.songs.any((s) => s.id == song.id);
-            String message = (settings.isOfflineMode && isInLibrary) 
-                ? 'This song is not available offline.' 
-                : 'Failed to stream song. Please check your connection.';
+            String message = playback.lastErrorMessage ?? 
+                ((settings.isOfflineMode && isInLibrary) 
+                    ? "We're sorry, this song is not available offline." 
+                    : "We're sorry, we couldn't stream this song. Please check your connection.");
                 
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
