@@ -10,7 +10,8 @@ const Color kBorderColor = Color(0xFF1E293B); // Subtle Dark Border
 const Color kTextColor = Color(0xFFF8FAFC); // Off-white for text
 const Color kVibrantYellowColor = Color(0xFFFFD700); // Bold Yellow
 const Color kMinimalistBeigeColor = Color(0xFFD2CEC3); // Soft Beige
-const String kYouTubeApiKey = 'AIzaSyCBzJhXM-IZbyqneKZcTMfwqlBxkbGOuk0';
+const String kYouTubeApiKey = String.fromEnvironment('YOUTUBE_API_KEY', defaultValue: 'AIzaSyCBzJhXM-IZbyqneKZcTMfwqlBxkbGOuk0');
+const String kLastFmApiKey = String.fromEnvironment('LASTFM_API_KEY', defaultValue: '');
 
 final BorderRadius kBorderRadius = BorderRadius.circular(24.0);
 

@@ -9,6 +9,7 @@ class Song {
   final String genre;
   final String license;
   final String? localPath; // null = not downloaded yet
+  final bool isLive;
 
   const Song({
     required this.id,
@@ -20,6 +21,7 @@ class Song {
     this.genre = 'Electronic',
     this.license = 'CC BY-NC 4.0',
     this.localPath,
+    this.isLive = false,
   });
 
   Song copyWith({
@@ -32,6 +34,7 @@ class Song {
     String? genre,
     String? license,
     String? localPath,
+    bool? isLive,
   }) {
     return Song(
       id: id ?? this.id,
@@ -43,6 +46,7 @@ class Song {
       genre: genre ?? this.genre,
       license: license ?? this.license,
       localPath: localPath ?? this.localPath,
+      isLive: isLive ?? this.isLive,
     );
   }
 }

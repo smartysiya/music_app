@@ -21,6 +21,7 @@ class PlaybackProvider extends ChangeNotifier {
   bool _isShuffleEnabled = false;
   final List<String> _favoriteSongIds = []; 
   String? _lastErrorMessage;
+  String? _loadingSongId;
 
   Song? get currentSong => _currentSong;
   bool get isPlaying => _isPlaying;
@@ -31,6 +32,9 @@ class PlaybackProvider extends ChangeNotifier {
   bool get isShuffleEnabled => _isShuffleEnabled;
   List<String> get favoriteSongIds => _favoriteSongIds;
   String? get lastErrorMessage => _lastErrorMessage;
+  String? get loadingSongId => _loadingSongId;
+  Widget get ytPlayerWidget => _audioService.ytPlayerWidget;
+
   bool isFavorite(String songId) => _favoriteSongIds.contains(songId);
 
   void toggleFavorite(String songId) {
@@ -72,15 +76,6 @@ class PlaybackProvider extends ChangeNotifier {
     _audioService.volumeStream.listen((vol) {
       _volume = vol;
       notifyListeners();
-    });
-
-    // Listen to sequence state to get the current song from the tag
-    _audioService.player.sequenceStateStream.listen((state) {
-      final tag = state?.currentSource?.tag;
-      if (tag is Song) {
-        _currentSong = tag;
-        notifyListeners();
-      }
     });
 
     // Listen to loop mode updates
@@ -137,28 +132,23 @@ class PlaybackProvider extends ChangeNotifier {
       return true;
     }
 
-    // If song ID is empty (e.g. from metadata), find it first
-    String videoId = song.id;
-    if (videoId.isEmpty) {
-      debugPrint('Finding YouTube ID for: ${song.title} by ${song.artist}');
-      final foundId = await _youtubeService.findVideoIdForSong(song.title, song.artist);
-      if (foundId == null) {
-        debugPrint('Could not find YouTube match for ${song.title}');
-        return false;
-      }
-      videoId = foundId;
-      song = song.copyWith(id: videoId);
-    }
+    _loadingSongId = song.id;
+    notifyListeners();
 
-    if (isInLibrary) {
-      debugPrint('Playing library song: ${song.title}');
-      final index = MusicLibrary.songs.indexWhere((s) => s.id == song.id);
-      await _audioService.loadAndPlay(index);
-      _currentSong = song;
-      notifyListeners();
-      return true;
-    } else {
-      // YouTube song — fetch fresh metadata + resolve audio stream
+    try {
+      // If song ID is empty (e.g. from metadata) or it's a library song (which lacks a YouTube ID)
+      String videoId = song.id;
+      if (videoId.isEmpty || videoId.length < 11) {
+        debugPrint('Finding YouTube ID for: ${song.title} by ${song.artist}');
+        final foundId = await _youtubeService.findVideoIdForSong(song.title, song.artist);
+        if (foundId == null) {
+          debugPrint('Could not find YouTube match for ${song.title}');
+          return false;
+        }
+        videoId = foundId;
+        song = song.copyWith(id: videoId);
+      }
+
       debugPrint('Playing YouTube audio: ${song.title} (${song.id})');
       
       // Fetch real metadata from YouTube API to update title/artist/duration/thumbnail
@@ -171,13 +161,13 @@ class PlaybackProvider extends ChangeNotifier {
         // Update song with authoritative metadata from YouTube
         song = freshMetadata;
         debugPrint('Metadata updated: "${song.title}" by ${song.artist} [${song.duration}]');
-        
-        // Immediately update UI with fresh metadata (before audio loads)
-        _currentSong = song;
-        notifyListeners();
       } else {
         debugPrint('Metadata fetch failed — using existing metadata for: ${song.title}');
       }
+      
+      // Immediately update UI with fresh metadata (before audio loads)
+      _currentSong = song;
+      notifyListeners();
 
       // Now resolve and play the audio stream
       final success = await _audioService.loadAndPlayUrl(song.id, song);
@@ -193,6 +183,9 @@ class PlaybackProvider extends ChangeNotifier {
       _lastErrorMessage = _audioService.lastErrorMessage;
       debugPrint('All resolution tiers failed for: ${song.title}');
       return false;
+    } finally {
+      _loadingSongId = null;
+      notifyListeners();
     }
   }
 

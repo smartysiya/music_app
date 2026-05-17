@@ -462,7 +462,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   return const SizedBox.shrink();
                 },
               ),
-              Text(song.duration, style: kSubtitleTextStyle),
+              Consumer<PlaybackProvider>(
+                builder: (context, playback, _) {
+                  if (playback.loadingSongId == song.id) {
+                    return const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: kCyanColor),
+                    );
+                  }
+                  return Text(song.duration, style: kSubtitleTextStyle);
+                },
+              ),
             ],
           ),
         ),
@@ -620,23 +631,36 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: kCyanColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                  if (song.isLive) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: kCyanColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text('LIVE',
+                          style: kSubtitleTextStyle.copyWith(
+                              color: kCyanColor, fontSize: 10, fontWeight: FontWeight.bold)),
                     ),
-                    child: Text('LIVE',
-                        style: kSubtitleTextStyle.copyWith(
-                            color: kCyanColor, fontSize: 10, fontWeight: FontWeight.bold)),
-                  ),
-                  const SizedBox(height: 12),
+                    const SizedBox(height: 12),
+                  ],
                   Text(song.title,
                       style: kTitleTextStyle.copyWith(fontSize: 18)),
                   Text(song.artist,
                       style: kSubtitleTextStyle.copyWith(fontSize: 14)),
                   const SizedBox(height: 16),
-                  const Icon(Icons.play_circle_fill, color: kCyanColor, size: 32),
+                  Consumer<PlaybackProvider>(
+                    builder: (context, playback, _) {
+                      if (playback.loadingSongId == song.id) {
+                        return const SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: CircularProgressIndicator(color: kCyanColor),
+                        );
+                      }
+                      return const Icon(Icons.play_circle_fill, color: kCyanColor, size: 32);
+                    },
+                  ),
                 ],
               ),
             ),
@@ -734,7 +758,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(song.duration, style: kSubtitleTextStyle.copyWith(fontSize: 12)),
+                        Consumer<PlaybackProvider>(
+                          builder: (context, playback, _) {
+                            if (playback.loadingSongId == song.id) {
+                              return const SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: kCyanColor),
+                              );
+                            }
+                            return Text(song.duration, style: kSubtitleTextStyle.copyWith(fontSize: 12));
+                          },
+                        ),
                         const SizedBox(height: 4),
                         Text(timeAgo, style: kSubtitleTextStyle.copyWith(fontSize: 11, color: kCyanColor)),
                       ],

@@ -187,19 +187,36 @@ class PlaylistScreen extends StatelessWidget {
                   return const SizedBox.shrink();
                 },
               ),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isCurrentSong ? kCyanColor : Colors.white.withOpacity(0.05),
+              if (playback.loadingSongId == song.id)
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.05),
+                  ),
+                  child: const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: kCyanColor),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isCurrentSong ? kCyanColor : Colors.white.withOpacity(0.05),
+                  ),
+                  child: Icon(
+                    isCurrentSong && playback.isPlaying ? Icons.pause : Icons.play_arrow, 
+                    color: isCurrentSong ? Colors.white : kTextColor,
+                    size: 20,
+                  ),
                 ),
-                child: Icon(
-                  isCurrentSong && playback.isPlaying ? Icons.pause : Icons.play_arrow, 
-                  color: isCurrentSong ? Colors.white : kTextColor,
-                  size: 20,
-                ),
-              ),
             ],
           ),
         ),

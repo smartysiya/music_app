@@ -1,13 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../constants.dart';
 import '../data/music_library.dart';
 
 class YouTubeService {
-  final YoutubeExplode _yt = YoutubeExplode();
-
   /// Search for songs on YouTube using the Data API v3.
   Future<List<Song>> searchSongs(String query) async {
     final encodedQuery = Uri.encodeComponent(query);
@@ -25,10 +22,8 @@ class YouTubeService {
         
         if (items == null || items.isEmpty) {
           debugPrint('YouTube API returned empty data for query: $query');
-          return _fallbackSearch(query);
+          return [];
         }
-
-        debugPrint('YouTube API Response (first item): ${json.encode(items[0]).substring(0, 200)}...');
 
         final videoIds = items.map((item) => item['id']['videoId']).join(',');
         final detailsUrl = 'https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=$videoIds&key=$kYouTubeApiKey';
@@ -57,43 +52,20 @@ class YouTubeService {
             duration: durations[videoId] ?? '--:--',
             imageUrl: snippet['thumbnails']['high']['url'],
             genre: 'Online',
+            isLive: snippet['liveBroadcastContent'] == 'live' || snippet['liveBroadcastContent'] == 'upcoming',
           );
         }).toList();
       } else {
         debugPrint('YouTube API Error: ${searchResponse.statusCode} - ${searchResponse.body}');
-        return _fallbackSearch(query);
+        return [];
       }
     } catch (e) {
       debugPrint('YouTube API Exception: $e');
-      return _fallbackSearch(query);
-    }
-  }
-
-  /// Fallback search using youtube_explode_dart when Data API is unavailable or fails.
-  Future<List<Song>> _fallbackSearch(String query) async {
-    debugPrint('Executing fallback search for: $query');
-    try {
-      final results = await _yt.search.search(query);
-      return results.map((video) {
-        return Song(
-          id: video.id.value,
-          title: video.title,
-          artist: video.author,
-          album: 'YouTube',
-          duration: video.duration?.toString().split('.').first ?? '--:--',
-          imageUrl: video.thumbnails.highResUrl,
-          genre: 'Online',
-        );
-      }).toList();
-    } catch (e) {
-      debugPrint('Fallback Search Failed: $e');
       return [];
     }
   }
 
   String _parseDuration(String isoDuration) {
-    // PT3M42S -> 3:42
-    // PT1H2M30S -> 1:02:30
     final regExp = RegExp(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?');
     final match = regExp.firstMatch(isoDuration);
     if (match == null) return '--:--';
@@ -112,35 +84,11 @@ class YouTubeService {
     return result;
   }
 
-  /// Get a direct audio stream URL for a given YouTube song.
-  /// If the original video is unavailable (e.g., official music videos blocking streams),
-  /// it performs a fallback search for an audio version.
+  /// Extracts the videoId and builds the playable URL.
+  /// (Required for passing to the YouTube Player IFrame)
   Future<String?> getAudioStreamUrl(Song song) async {
-    try {
-      final manifest = await _yt.videos.streamsClient.getManifest(song.id);
-      final audioStream = manifest.audioOnly.withHighestBitrate();
-      return audioStream.url.toString();
-    } catch (e) {
-      // Original video failed, try fallback search
-      try {
-        final query = '${song.title} ${song.artist} audio';
-        final searchResults = await _yt.search.search(query);
-        for (var video in searchResults) {
-          if (video.id.value != song.id) {
-            try {
-              final manifest = await _yt.videos.streamsClient.getManifest(video.id);
-              final audioStream = manifest.audioOnly.withHighestBitrate();
-              return audioStream.url.toString();
-            } catch (_) {
-              continue;
-            }
-          }
-        }
-      } catch (fallbackError) {
-        return null;
-      }
-      return null;
-    }
+    // We now just build the official playable URL instead of scraping a raw stream.
+    return 'https://www.youtube.com/watch?v=${song.id}';
   }
 
   Future<List<Song>> getFeaturedSongs() async {
@@ -149,29 +97,49 @@ class YouTubeService {
 
   Future<List<Song>> getRelatedSongs(String videoId) async {
     try {
-      final video = await _yt.videos.get(VideoId(videoId));
-      final relatedVideos = await _yt.videos.getRelatedVideos(video);
-      if (relatedVideos == null) return [];
-      
-      return relatedVideos.map((video) {
-        return Song(
-          id: video.id.value,
-          title: video.title,
-          artist: video.author,
-          album: 'YouTube',
-          duration: video.duration?.toString().split('.').first ?? '--:--',
-          imageUrl: video.thumbnails.highResUrl,
-          genre: 'Online',
-        );
-      }).toList();
+      final relatedUrl = 'https://www.googleapis.com/youtube/v3/search?part=snippet&relatedToVideoId=$videoId&type=video&maxResults=10&key=$kYouTubeApiKey';
+      final response = await http.get(Uri.parse(relatedUrl));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List? items = data['items'];
+        if (items == null || items.isEmpty) return [];
+
+        final videoIds = items.map((item) => item['id']['videoId']).join(',');
+        final detailsUrl = 'https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=$videoIds&key=$kYouTubeApiKey';
+        final detailsResponse = await http.get(Uri.parse(detailsUrl));
+        Map<String, String> durations = {};
+        
+        if (detailsResponse.statusCode == 200) {
+          final detailsData = json.decode(detailsResponse.body);
+          for (var item in detailsData['items']) {
+            durations[item['id']] = _parseDuration(item['contentDetails']['duration']);
+          }
+        }
+
+        return items.map((item) {
+          final snippet = item['snippet'];
+          final vidId = item['id']['videoId'];
+          return Song(
+            id: vidId,
+            title: snippet['title'],
+            artist: snippet['channelTitle'],
+            album: 'YouTube',
+            duration: durations[vidId] ?? '--:--',
+            imageUrl: snippet['thumbnails']['high']['url'],
+            genre: 'Online',
+            isLive: snippet['liveBroadcastContent'] == 'live' || snippet['liveBroadcastContent'] == 'upcoming',
+          );
+        }).toList();
+      }
+      return [];
     } catch (e) {
-      debugPrint('Error getting related songs: $e');
+      debugPrint('Error getting related songs via Data API: $e');
       return [];
     }
   }
 
   void dispose() {
-    _yt.close();
+    // No more YoutubeExplode to close.
   }
 
   Future<String?> findVideoIdForSong(String title, String artist) async {
@@ -183,48 +151,46 @@ class YouTubeService {
     return null;
   }
 
-  /// Fetches the real, authoritative metadata for a YouTube video.
-  /// Returns an updated [Song] with fresh title, artist, duration, and thumbnail.
-  /// Returns null only if the video is completely unreachable.
+  /// Fetches the real, authoritative metadata for a YouTube video using Data API v3.
   Future<Song?> fetchVideoMetadata(String videoId, {Song? existing}) async {
     try {
-      debugPrint('Fetching metadata for video: $videoId');
-      final video = await _yt.videos.get(VideoId(videoId))
-          .timeout(const Duration(seconds: 5));
+      debugPrint('Fetching metadata for video: $videoId via Data API');
+      final url = 'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=$videoId&key=$kYouTubeApiKey';
+      
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final items = data['items'] as List;
+        if (items.isEmpty) return null;
 
-      // Parse the actual duration from the Video object
-      final dur = video.duration;
-      String durationStr = '--:--';
-      if (dur != null) {
-        final hours = dur.inHours;
-        final minutes = dur.inMinutes.remainder(60);
-        final seconds = dur.inSeconds.remainder(60);
-        if (hours > 0) {
-          durationStr = '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-        } else {
-          durationStr = '$minutes:${seconds.toString().padLeft(2, '0')}';
-        }
+        final item = items.first;
+        final snippet = item['snippet'];
+        final contentDetails = item['contentDetails'];
+        
+        final durationStr = _parseDuration(contentDetails['duration']);
+        
+        String cleanTitle = snippet['title']
+            .toString()
+            .replaceAll(RegExp(r'\s*[\(\[](Official|Lyric|Music|Audio|HD|HQ)[\s\w]*[\)\]]', caseSensitive: false), '')
+            .replaceAll(RegExp(r'\s*\|\s*.*$'), '')
+            .trim();
+
+        final updatedSong = Song(
+          id: videoId,
+          title: cleanTitle.isNotEmpty ? cleanTitle : snippet['title'],
+          artist: snippet['channelTitle'],
+          album: existing?.album ?? 'YouTube',
+          duration: durationStr,
+          imageUrl: snippet['thumbnails']['high']['url'],
+          genre: existing?.genre ?? 'Online',
+          license: 'YouTube Standard License',
+          isLive: snippet['liveBroadcastContent'] == 'live' || snippet['liveBroadcastContent'] == 'upcoming',
+        );
+
+        debugPrint('Metadata resolved: "${updatedSong.title}" by ${updatedSong.artist} [${updatedSong.duration}]');
+        return updatedSong;
       }
-
-      // Clean up the title: remove " (Official Video)", " [Official Audio]", etc.
-      String cleanTitle = video.title
-          .replaceAll(RegExp(r'\s*[\(\[](Official|Lyric|Music|Audio|HD|HQ)[\s\w]*[\)\]]', caseSensitive: false), '')
-          .replaceAll(RegExp(r'\s*\|\s*.*$'), '') // Remove " | Something"
-          .trim();
-
-      final updatedSong = Song(
-        id: videoId,
-        title: cleanTitle.isNotEmpty ? cleanTitle : video.title,
-        artist: video.author,
-        album: existing?.album ?? 'YouTube',
-        duration: durationStr,
-        imageUrl: video.thumbnails.highResUrl,
-        genre: existing?.genre ?? 'Online',
-        license: 'YouTube Standard License',
-      );
-
-      debugPrint('Metadata resolved: "${updatedSong.title}" by ${updatedSong.artist} [${updatedSong.duration}]');
-      return updatedSong;
+      return null;
     } catch (e) {
       debugPrint('Failed to fetch metadata for $videoId: $e');
       return null;

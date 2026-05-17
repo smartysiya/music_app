@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/playback_provider.dart';
 import '../constants.dart';
 import '../screens/home_screen.dart';
 import '../screens/favorites_screen.dart';
@@ -75,6 +77,7 @@ class _MainShellState extends State<MainShell> {
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            context.watch<PlaybackProvider>().ytPlayerWidget,
             const MiniPlayer(),
             _buildBottomNav(),
           ],
