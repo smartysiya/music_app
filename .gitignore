@@ -1,1 +1,16 @@
 .codebuddy
+.env
+.env*
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+*.dill
+*.symbols
+*.pdb
+*.ipr
+*.iml
+*.iws
+.idea/
+.vscode/

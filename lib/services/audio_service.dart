@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart' as ja;
 import 'package:youtube_player_iframe/youtube_player_iframe.dart' as yt;
@@ -12,6 +13,26 @@ class StreamResolution {
   StreamResolution.failure(this.error, this.method);
 
   bool get isSuccess => error == null;
+}
+
+class MyBufferAudioSource extends ja.StreamAudioSource {
+  final Uint8List bytes;
+  final String contentType;
+  
+  MyBufferAudioSource(this.bytes, {super.tag, this.contentType = 'audio/mpeg'});
+
+  @override
+  Future<ja.StreamAudioResponse> request([int? start, int? end]) async {
+    start ??= 0;
+    end ??= bytes.length;
+    return ja.StreamAudioResponse(
+      sourceLength: bytes.length,
+      contentLength: end - start,
+      offset: start,
+      stream: Stream.value(bytes.sublist(start, end)),
+      contentType: contentType,
+    );
+  }
 }
 
 class AudioService {
@@ -113,9 +134,25 @@ class AudioService {
     return false;
   }
 
-  Future<bool> loadAndPlayUrl(String url, Song song) async {
+  Future<bool> loadAndPlayUrl(String url, Song song, {Uint8List? preloadedBytes}) async {
     _lastErrorMessage = null;
     debugPrint('┌─ Audio Resolution Pipeline for: ${song.title}');
+    
+    if (preloadedBytes != null && preloadedBytes.isNotEmpty) {
+      _isYoutubeMode = false;
+      try {
+        await _ytController.pauseVideo(); // Stop youtube player
+        debugPrint('│  Playing preloaded byte buffer in-memory');
+        final source = MyBufferAudioSource(preloadedBytes, tag: song);
+        await _player.setAudioSource(source);
+        await _player.play();
+        debugPrint('└─ ✓ Playback confirmed via preloaded memory cache');
+        return true;
+      } catch (e) {
+        debugPrint('│  ✗ Preloaded byte playback failed: $e');
+        _lastErrorMessage = e.toString();
+      }
+    }
     
     if (_isYouTubeIdentifier(url)) {
       _isYoutubeMode = true;

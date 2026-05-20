@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'constants.dart';
 import 'widgets/main_shell.dart';
 import 'package:provider/provider.dart';
@@ -11,7 +12,9 @@ import 'providers/download_provider.dart';
 import 'providers/history_provider.dart';
 import 'providers/playlist_provider.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: '.env');
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,

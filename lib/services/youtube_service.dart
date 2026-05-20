@@ -7,10 +7,14 @@ import '../data/music_library.dart';
 class YouTubeService {
   /// Search for songs on YouTube using the Data API v3.
   Future<List<Song>> searchSongs(String query) async {
+    if (kYouTubeApiKey.isEmpty) {
+      debugPrint('YouTube API Error: YOUTUBE_API_KEY is not set. Check your .env file.');
+      return [];
+    }
     final encodedQuery = Uri.encodeComponent(query);
     final searchUrl = 'https://www.googleapis.com/youtube/v3/search?part=snippet&q=$encodedQuery&type=video&videoCategoryId=10&maxResults=10&key=$kYouTubeApiKey';
 
-    debugPrint('YouTube API Request: $searchUrl');
+    debugPrint('YouTube API Request: ...q=$encodedQuery&type=video&videoCategoryId=10&maxResults=1');
 
     try {
       final searchResponse = await http.get(Uri.parse(searchUrl));
@@ -95,105 +99,84 @@ class YouTubeService {
     return searchSongs('trending music 2024');
   }
 
-  Future<List<Song>> getRelatedSongs(String videoId) async {
+  Future<List<Song>> getRelatedSongs(String videoId, {String? title, String? artist}) async {
+    if (kYouTubeApiKey.isEmpty) {
+      debugPrint('YouTube API Error: YOUTUBE_API_KEY is not set. Check your .env file.');
+      return [];
+    }
     try {
       final relatedUrl = 'https://www.googleapis.com/youtube/v3/search?part=snippet&relatedToVideoId=$videoId&type=video&maxResults=10&key=$kYouTubeApiKey';
-      final response = await http.get(Uri.parse(relatedUrl));
+      final response = await http.get(Uri.parse(relatedUrl)).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final List? items = data['items'];
-        if (items == null || items.isEmpty) return [];
-
-        final videoIds = items.map((item) => item['id']['videoId']).join(',');
-        final detailsUrl = 'https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=$videoIds&key=$kYouTubeApiKey';
-        final detailsResponse = await http.get(Uri.parse(detailsUrl));
-        Map<String, String> durations = {};
-        
-        if (detailsResponse.statusCode == 200) {
-          final detailsData = json.decode(detailsResponse.body);
-          for (var item in detailsData['items']) {
-            durations[item['id']] = _parseDuration(item['contentDetails']['duration']);
+        if (items != null && items.isNotEmpty) {
+          final videoIds = items.map((item) => item['id']['videoId']).join(',');
+          final detailsUrl = 'https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=$videoIds&key=$kYouTubeApiKey';
+          final detailsResponse = await http.get(Uri.parse(detailsUrl)).timeout(const Duration(seconds: 4));
+          Map<String, String> durations = {};
+          
+          if (detailsResponse.statusCode == 200) {
+            final detailsData = json.decode(detailsResponse.body);
+            for (var item in detailsData['items']) {
+              durations[item['id']] = _parseDuration(item['contentDetails']['duration']);
+            }
           }
-        }
 
-        return items.map((item) {
-          final snippet = item['snippet'];
-          final vidId = item['id']['videoId'];
-          return Song(
-            id: vidId,
-            title: snippet['title'],
-            artist: snippet['channelTitle'],
-            album: 'YouTube',
-            duration: durations[vidId] ?? '--:--',
-            imageUrl: snippet['thumbnails']['high']['url'],
-            genre: 'Online',
-            isLive: snippet['liveBroadcastContent'] == 'live' || snippet['liveBroadcastContent'] == 'upcoming',
-          );
-        }).toList();
+          return items.map((item) {
+            final snippet = item['snippet'];
+            final vidId = item['id']['videoId'];
+            return Song(
+              id: vidId,
+              title: snippet['title'],
+              artist: snippet['channelTitle'],
+              album: 'YouTube',
+              duration: durations[vidId] ?? '--:--',
+              imageUrl: snippet['thumbnails']['high']['url'],
+              genre: 'Online',
+              isLive: snippet['liveBroadcastContent'] == 'live' || snippet['liveBroadcastContent'] == 'upcoming',
+            );
+          }).toList();
+        }
       }
-      return [];
+      debugPrint('YouTube relatedToVideoId call returned status ${response.statusCode} or empty. Falling back to search recommendations.');
     } catch (e) {
-      debugPrint('Error getting related songs via Data API: $e');
-      return [];
+      debugPrint('Error getting related songs via relatedToVideoId: $e. Falling back to search recommendations.');
     }
+
+    if (title != null && title.isNotEmpty) {
+      final query = artist != null && artist.isNotEmpty ? '$title by $artist recommendations' : '$title recommendations';
+      debugPrint('Executing fallback search recommendations query: "$query"');
+      return await searchSongs(query);
+    }
+    return [];
   }
 
   void dispose() {
     // No more YoutubeExplode to close.
   }
 
-  Future<String?> findVideoIdForSong(String title, String artist) async {
+  Future<String?> findVideoId(String title, String artist) async {
+    if (kYouTubeApiKey.isEmpty) {
+      debugPrint('YouTube API Error: YOUTUBE_API_KEY is not set. Check your .env file.');
+      return null;
+    }
     final query = '$title by $artist official audio';
-    final results = await searchSongs(query);
-    if (results.isNotEmpty) {
-      return results[0].id;
+    final encodedQuery = Uri.encodeComponent(query);
+    final searchUrl = 'https://www.googleapis.com/youtube/v3/search?part=snippet&q=$encodedQuery&type=video&videoCategoryId=10&maxResults=1&key=$kYouTubeApiKey';
+    try {
+      final response = await http.get(Uri.parse(searchUrl)).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final searchData = json.decode(response.body);
+        final List? items = searchData['items'];
+        if (items != null && items.isNotEmpty) {
+          return items[0]['id']['videoId'];
+        }
+      }
+    } catch (e) {
+      debugPrint('Error finding video ID for $title by $artist: $e');
     }
     return null;
   }
-
-  /// Fetches the real, authoritative metadata for a YouTube video using Data API v3.
-  Future<Song?> fetchVideoMetadata(String videoId, {Song? existing}) async {
-    try {
-      debugPrint('Fetching metadata for video: $videoId via Data API');
-      final url = 'https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=$videoId&key=$kYouTubeApiKey';
-      
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final items = data['items'] as List;
-        if (items.isEmpty) return null;
-
-        final item = items.first;
-        final snippet = item['snippet'];
-        final contentDetails = item['contentDetails'];
-        
-        final durationStr = _parseDuration(contentDetails['duration']);
-        
-        String cleanTitle = snippet['title']
-            .toString()
-            .replaceAll(RegExp(r'\s*[\(\[](Official|Lyric|Music|Audio|HD|HQ)[\s\w]*[\)\]]', caseSensitive: false), '')
-            .replaceAll(RegExp(r'\s*\|\s*.*$'), '')
-            .trim();
-
-        final updatedSong = Song(
-          id: videoId,
-          title: cleanTitle.isNotEmpty ? cleanTitle : snippet['title'],
-          artist: snippet['channelTitle'],
-          album: existing?.album ?? 'YouTube',
-          duration: durationStr,
-          imageUrl: snippet['thumbnails']['high']['url'],
-          genre: existing?.genre ?? 'Online',
-          license: 'YouTube Standard License',
-          isLive: snippet['liveBroadcastContent'] == 'live' || snippet['liveBroadcastContent'] == 'upcoming',
-        );
-
-        debugPrint('Metadata resolved: "${updatedSong.title}" by ${updatedSong.artist} [${updatedSong.duration}]');
-        return updatedSong;
-      }
-      return null;
-    } catch (e) {
-      debugPrint('Failed to fetch metadata for $videoId: $e');
-      return null;
-    }
-  }
 }
+

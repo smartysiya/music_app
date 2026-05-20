@@ -7,7 +7,6 @@ import '../widgets/smooth_page_route.dart';
 import '../providers/playback_provider.dart';
 import '../data/music_library.dart';
 import '../services/youtube_service.dart';
-import 'now_playing_screen.dart';
 import 'my_music_screen.dart';
 import 'notification_screen.dart';
 import '../providers/settings_provider.dart';
@@ -58,9 +57,9 @@ class _HomeScreenState extends State<HomeScreen> {
         results = MusicLibrary.songs.take(10).toList();
       } else if (tab == 'Songs') {
         results = MusicLibrary.songs;
-      } else if (tab == 'Album') {
+      } else if (tab == 'Albums') {
         results = MusicLibrary.songs;
-      } else if (tab == 'Artist') {
+      } else if (tab == 'Artists') {
         results = MusicLibrary.songs;
       }
     } catch (e) {
@@ -142,10 +141,10 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _buildHeader(context),
           const SizedBox(height: 32),
-          Text('Listening Everyday', style: kHeadingTextStyle),
+          Text('Listening Every Day', style: kHeadingTextStyle),
           const SizedBox(height: 8),
           Text(
-            'Explore millions of music according to your taste',
+            'Explore millions of songs tailored to your taste',
             style: kSubtitleTextStyle,
           ),
           const SizedBox(height: 24),
@@ -176,9 +175,9 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (_selectedTab) {
       case 'Songs':
         return _buildSongsList();
-      case 'Album':
+      case 'Albums':
         return _buildAlbumsGrid();
-      case 'Artist':
+      case 'Artists':
         return _buildArtistsGrid();
       case 'Overview':
       default:
@@ -288,7 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTabs() {
-    List<String> tabs = ['Overview', 'Songs', 'Album', 'Artist'];
+    List<String> tabs = ['Overview', 'Songs', 'Albums', 'Artists'];
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: tabs.map((tab) {

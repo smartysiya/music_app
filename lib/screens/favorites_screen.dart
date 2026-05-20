@@ -9,7 +9,8 @@ import '../providers/download_provider.dart';
 import '../widgets/now_playing_navigator.dart';
 
 class FavoritesScreen extends StatefulWidget {
-  const FavoritesScreen({super.key});
+  final bool isFullScreen;
+  const FavoritesScreen({super.key, this.isFullScreen = false});
 
   @override
   State<FavoritesScreen> createState() => _FavoritesScreenState();
@@ -91,7 +92,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       favoriteSongs.sort((a, b) => a.artist.compareTo(b.artist));
     }
 
-    return Padding(
+    Widget content = Padding(
       padding: const EdgeInsets.only(left: 24, right: 24, top: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,7 +110,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
             child: favoriteSongs.isEmpty 
               ? _buildEmptyState()
               : ListView.separated(
-                  padding: const EdgeInsets.only(bottom: 100), // Space for MiniPlayer
+                  padding: EdgeInsets.only(bottom: widget.isFullScreen ? 24 : 100), // Adjust bottom space
                   itemCount: favoriteSongs.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
@@ -121,6 +122,30 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         ],
       ),
     );
+
+    if (widget.isFullScreen) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              kBackgroundColor,
+              const Color(0xFF1E293B),
+              kTealColor.withOpacity(0.2),
+            ],
+          ),
+        ),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            child: content,
+          ),
+        ),
+      );
+    }
+
+    return content;
   }
 
   Widget _buildEmptyState() {
@@ -142,7 +167,23 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const SizedBox(width: 24), // Placeholder to keep title centered
+        if (widget.isFullScreen)
+          TappableCard(
+            onTap: () => Navigator.pop(context),
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: kOrangeColor.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(16),
+                border:
+                    Border.all(color: Colors.white.withOpacity(0.1), width: 1.5),
+              ),
+              child: const Icon(Icons.arrow_back, color: kTextColor),
+            ),
+          )
+        else
+          const SizedBox(width: 48), // Match sort button width to center the title
         Text('Favorites', style: kTitleTextStyle),
         IconButton(
           onPressed: _showSortDialog,

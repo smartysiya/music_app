@@ -2,6 +2,29 @@
 
 A new Flutter project.
 
+## Configuration
+
+This project requires API keys to function properly. Copy `.env.example` to `.env` in the project root and fill in your keys:
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env`:
+
+```env
+YOUTUBE_API_KEY=your_youtube_api_key_here
+LASTFM_API_KEY=your_lastfm_api_key_here
+```
+
+The app loads these at runtime via `flutter_dotenv`. No extra flags are needed — just run:
+
+```bash
+flutter run
+```
+
+> **⚠️ Important:** Never commit your `.env` file. It is already listed in `.gitignore`.
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

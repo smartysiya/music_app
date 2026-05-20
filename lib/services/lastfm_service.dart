@@ -1,12 +1,82 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import '../constants.dart';
 import '../data/music_library.dart';
+
+/// Lightweight metadata result from Last.fm track.getInfo.
+/// Returned by [LastFmService.fetchTrackInfo].
+class TrackMetadata {
+  final String title;
+  final String artist;
+  final String album;
+  final String artworkUrl;
+  final String duration;
+
+  const TrackMetadata({
+    required this.title,
+    required this.artist,
+    required this.album,
+    required this.artworkUrl,
+    required this.duration,
+  });
+}
 
 class LastFmService {
   static const String _baseUrl = 'https://ws.audioscrobbler.com/2.0/';
 
+  bool _ensureApiKey() {
+    if (kLastFmApiKey.isEmpty) {
+      debugPrint('Last.fm API Error: LASTFM_API_KEY is not set. Check your .env file.');
+      return false;
+    }
+    return true;
+  }
+
+  Future<TrackMetadata?> fetchTrackInfo(String title, String artist) async {
+    if (!_ensureApiKey()) return null;
+    final encodedTitle = Uri.encodeComponent(title);
+    final encodedArtist = Uri.encodeComponent(artist);
+    final url = '$_baseUrl?method=track.getInfo&api_key=$kLastFmApiKey&artist=$encodedArtist&track=$encodedTitle&format=json';
+    try {
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final track = data['track'];
+        if (track != null) {
+          final correctedTitle = track['name'] ?? title;
+          final correctedArtist = (track['artist'] != null ? track['artist']['name'] : null) ?? artist;
+          final albumData = track['album'];
+          final albumName = (albumData != null ? albumData['title'] : null) ?? 'Unknown Album';
+          final artworkUrl = albumData != null ? _getHighestResImage(albumData['image']) : '';
+          
+          final rawDuration = track['duration'];
+          String durationStr = '--:--';
+          if (rawDuration != null) {
+            final ms = int.tryParse(rawDuration.toString()) ?? 0;
+            if (ms > 0) {
+              durationStr = _formatSeconds(ms ~/ 1000);
+            }
+          }
+          
+          return TrackMetadata(
+            title: correctedTitle,
+            artist: correctedArtist,
+            album: albumName,
+            artworkUrl: artworkUrl,
+            duration: durationStr,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching Last.fm track info for $title by $artist: $e');
+    }
+    return null;
+  }
+
   Future<List<Song>> searchTracks(String query) async {
+    if (!_ensureApiKey()) return [];
     final url = '$_baseUrl?method=track.search&track=$query&api_key=$kLastFmApiKey&format=json&limit=10';
     try {
       final response = await http.get(Uri.parse(url));
@@ -27,12 +97,13 @@ class LastFmService {
         }).toList();
       }
     } catch (e) {
-      print('Error searching Last.fm tracks: $e');
+      debugPrint('Error searching Last.fm tracks: $e');
     }
     return [];
   }
 
   Future<List<Song>> getTopTracks() async {
+    if (!_ensureApiKey()) return [];
     final url = '$_baseUrl?method=chart.gettoptracks&api_key=$kLastFmApiKey&format=json&limit=10';
     try {
       final response = await http.get(Uri.parse(url));
@@ -53,12 +124,13 @@ class LastFmService {
         }).toList();
       }
     } catch (e) {
-      print('Error fetching Top Tracks: $e');
+      debugPrint('Error fetching Top Tracks: $e');
     }
     return [];
   }
 
   Future<List<Song>> getTopArtists() async {
+    if (!_ensureApiKey()) return [];
     final url = '$_baseUrl?method=chart.gettopartists&api_key=$kLastFmApiKey&format=json&limit=10';
     try {
       final response = await http.get(Uri.parse(url));
@@ -79,12 +151,13 @@ class LastFmService {
         }).toList();
       }
     } catch (e) {
-      print('Error fetching Top Artists: $e');
+      debugPrint('Error fetching Top Artists: $e');
     }
     return [];
   }
 
   Future<List<Song>> searchAlbums(String query) async {
+    if (!_ensureApiKey()) return [];
     final url = '$_baseUrl?method=album.search&album=$query&api_key=$kLastFmApiKey&format=json&limit=10';
     try {
       final response = await http.get(Uri.parse(url));
@@ -105,12 +178,13 @@ class LastFmService {
         }).toList();
       }
     } catch (e) {
-      print('Error searching Last.fm albums: $e');
+      debugPrint('Error searching Last.fm albums: $e');
     }
     return [];
   }
 
   Future<List<Song>> getAlbumTracks(String artist, String album) async {
+    if (!_ensureApiKey()) return [];
     final url = '$_baseUrl?method=album.getinfo&api_key=$kLastFmApiKey&artist=$artist&album=$album&format=json';
     try {
       final response = await http.get(Uri.parse(url));
@@ -130,7 +204,7 @@ class LastFmService {
         }).toList();
       }
     } catch (e) {
-      print('Error fetching album tracks: $e');
+      debugPrint('Error fetching album tracks: $e');
     }
     return [];
   }

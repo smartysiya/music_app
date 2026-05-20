@@ -5,6 +5,7 @@ import '../widgets/smooth_page_route.dart';
 import 'playlist_screen.dart';
 import 'lyric_screen.dart';
 import 'notification_screen.dart';
+import 'favorites_screen.dart';
 
 class MyMusicScreen extends StatelessWidget {
   const MyMusicScreen({super.key});
@@ -105,9 +106,9 @@ class MyMusicScreen extends StatelessWidget {
         'title': 'Collections'
       },
       {
-        'icon': Icons.shopping_cart_outlined,
-        'color': kOrangeColor,
-        'title': 'Purchase'
+        'icon': Icons.favorite_border,
+        'color': Colors.redAccent,
+        'title': 'Favorite'
       },
       {
         'icon': Icons.video_library_outlined,
@@ -137,6 +138,9 @@ class MyMusicScreen extends StatelessWidget {
               if (item['title'] == 'Lyric') {
                 Navigator.push(
                     context, SmoothPageRoute(page: const LyricScreen()));
+              } else if (item['title'] == 'Favorite') {
+                Navigator.push(
+                    context, SmoothPageRoute(page: const FavoritesScreen(isFullScreen: true)));
               } else if (item['title'] == 'Videos') {
                 showDialog(
                   context: context,
